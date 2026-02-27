@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# CDK
+cdk.out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AWS
+.bedrock_agentcore/
+
+# oh-my-claudecode
+.omc/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
