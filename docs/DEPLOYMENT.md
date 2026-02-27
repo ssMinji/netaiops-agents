@@ -1,261 +1,377 @@
-# NetAIOps Workshop - Multi-Region Deployment Guide
+# NetAIOps Agent 배포 가이드
 
-## Environment Configuration
+## 개요
 
-| 항목 | 값 |
-|------|-----|
-| AWS Profile | `netaiops-deploy` |
-| AWS Account | `175678592674` |
-| Agent Region (Virginia) | `us-east-1` |
-| EKS Region (Oregon) | `us-west-2` |
-| EKS Cluster | `netaiops-eks-cluster` |
-| Bedrock Model | `global.anthropic.claude-opus-4-6-v1` |
+NetAIOps는 3개의 AI Agent로 구성된 EKS 옵저버빌리티 플랫폼입니다.
 
-## Region Split Strategy
+| Agent | 역할 | Tool (Lambda/MCP Server) |
+|-------|------|--------------------------|
+| **K8s Agent** | EKS 클러스터 진단, 리소스 관리 | EKS MCP Server (mcpServer) |
+| **Incident Agent** | 인시던트 자동 분석, 근본 원인 추적 | Datadog, OpenSearch, Container Insight, Chaos, Alarm Trigger, GitHub (6 Lambda) |
+| **Istio Agent** | 서비스 메시 진단, 트래픽 관리 | EKS MCP Server (재사용) + Prometheus, Fault (2 Lambda) |
+
+### 리전 구성
+
+모든 리소스는 `ap-northeast-2` (Seoul) 단일 리전에 배포됩니다.
 
 ```
-us-east-1 (Virginia)                    us-west-2 (Oregon)
-├── Bedrock AgentCore Runtime           ├── EKS Cluster (netaiops-eks-cluster)
-├── Cognito User Pool                   ├── EKS Workloads (retail-store, istio-sample)
-├── MCP Gateway                         ├── CloudWatch Container Insights
-├── Lambda Functions                    ├── CloudWatch Alarms
-├── IAM Roles                           ├── SNS Topic
-├── SSM Parameters                      ├── OpenSearch (netaiops-logs)
-└── S3 (CFn templates)                  └── AMP Workspace (Module 7)
+ap-northeast-2 (Seoul)
+├── Bedrock AgentCore Runtime
+├── Cognito User Pool
+├── MCP Gateway
+├── Lambda Functions
+├── SSM Parameters
+├── EKS Cluster (netaiops-eks-cluster)
+├── CloudWatch Container Insights
+├── CloudWatch Alarms
+├── SNS Topic
+└── OpenSearch
 ```
 
-## Common Setup
+### 의존 관계
 
-```bash
-# AWS Profile 설정
-export AWS_PROFILE=netaiops-deploy
+```
+K8s Agent (독립)
+    └── EKS MCP Server Runtime
 
-# kubectl 연결 (Oregon EKS)
-aws eks update-kubeconfig --name netaiops-eks-cluster --region us-west-2 --profile netaiops-deploy
+Incident Agent (독립)
+    └── 6 Lambda + SNS/Alarm
+    └── EKS RBAC (Chaos Lambda용)
 
-# 확인
-aws sts get-caller-identity --query Account --output text  # → 175678592674
-kubectl get nodes                                           # → 2 nodes Ready
+Istio Agent (K8s Agent 의존)
+    └── K8s Agent의 EKS MCP Server ARN 참조
+    └── Istio 메시 + AMP/ADOT 인프라 필요
 ```
 
 ---
 
-## Module 5: K8s Diagnostics Agent
+## 사전 요구사항
 
-### SSM Prefix: `/a2a/app/k8s/agentcore/`
-
-### 배포 순서
+### 필수 도구
 
 ```bash
-export AWS_PROFILE=netaiops-deploy
+# AWS CDK
+npm install -g aws-cdk
 
-# 1. Cognito + IAM (Virginia)
-aws cloudformation deploy \
-  --template-file workshop-module-5/module-5/agentcore-k8s-agent/prerequisite/k8s-agentcore-cognito.yaml \
-  --stack-name k8s-agentcore-cognito \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --region us-east-1
+# AgentCore CLI
+pip install bedrock-agentcore-starter-toolkit
 
-# 2. EKS MCP Server 배포 (Virginia - AgentCore Runtime)
-cd workshop-module-5/module-5/agentcore-k8s-agent/prerequisite/eks-mcp-server
+# Kubernetes
+aws eks update-kubeconfig --name netaiops-eks-cluster --region ap-northeast-2 --profile ssminji-wesang
+
+# Docker (Lambda 이미지 빌드용)
+docker --version
+```
+
+### AWS Profile
+
+```bash
+# CDK 배포용 프로필 (infra-cdk/lib/config.ts 에 정의됨)
+aws configure --profile ssminji-wesang
+# Account: 175678592674
+# Region: ap-northeast-2
+```
+
+### 외부 서비스 SSM 파라미터 (선택)
+
+Incident Agent의 외부 연동이 필요한 경우 사전에 SSM에 저장합니다.
+
+```bash
+PROFILE="ssminji-wesang"
+REGION="ap-northeast-2"
+
+# Datadog (선택)
+aws ssm put-parameter --name /app/incident/datadog/api_key --value "YOUR_KEY" --type SecureString --profile $PROFILE --region $REGION
+aws ssm put-parameter --name /app/incident/datadog/app_key --value "YOUR_KEY" --type SecureString --profile $PROFILE --region $REGION
+aws ssm put-parameter --name /app/incident/datadog/site --value "us5.datadoghq.com" --type String --profile $PROFILE --region $REGION
+
+# OpenSearch (선택)
+aws ssm put-parameter --name /app/incident/opensearch/endpoint --value "YOUR_ENDPOINT" --type String --profile $PROFILE --region $REGION
+
+# GitHub (선택) - 또는 setup-github.sh 스크립트 사용
+aws ssm put-parameter --name /app/incident/github/pat --value "YOUR_PAT" --type SecureString --profile $PROFILE --region $REGION
+aws ssm put-parameter --name /app/incident/github/repo --value "owner/repo-name" --type String --profile $PROFILE --region $REGION
+```
+
+---
+
+## 빠른 배포 (Phase 1~4 통합)
+
+프로젝트 루트의 `deploy.sh`로 Phase 1~4를 한 번에 실행할 수 있습니다.
+
+```bash
+# 기본 (ssminji-wesang 프로필)
+./deploy.sh
+
+# 다른 프로필 사용
+AWS_PROFILE=my-other-profile ./deploy.sh
+```
+
+스크립트가 수행하는 작업:
+1. 필수 도구 검증 (aws, npx, docker, kubectl, agentcore)
+2. CDK 인프라 배포 (Cognito, Lambda, Gateway, SNS/Alarm)
+   - 첫 배포 시 EKS MCP Server ARN placeholder를 SSM에 자동 생성
+3. EKS RBAC 설정 (Chaos Lambda용)
+4. EKS MCP Server Runtime 배포
+   - 첫 배포 시 K8sAgentStack을 실제 ARN으로 자동 재배포
+5. K8s Agent + Incident Agent + Istio Agent Runtime 배포
+
+> 각 Phase를 개별 실행하려면 아래 섹션을 참고하세요.
+
+---
+
+## Phase 1: CDK 인프라 배포
+
+CDK가 3개 Agent의 인프라를 한 번에 배포합니다.
+
+### CDK가 생성하는 리소스
+
+| Stack | 생성 리소스 |
+|-------|------------|
+| **K8sAgentStack** | Cognito (Agent Pool + Runtime Pool), IAM Role, MCP Gateway (mcpServer 타겟), Runtime 설정 |
+| **IncidentAgentStack** | Cognito, IAM Role, 6 Docker Lambda, MCP Gateway (Lambda 타겟), Runtime 설정, SNS + CloudWatch Alarms |
+| **IstioAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda 하이브리드 타겟), Runtime 설정 |
+
+### 배포 실행
+
+```bash
+cd infra-cdk
+
+# 의존성 설치
+npm install
+
+# 빌드
+npm run build
+
+# CDK Bootstrap (최초 1회)
+npx cdk bootstrap aws://175678592674/ap-northeast-2 --profile ssminji-wesang
+
+# 전체 스택 배포
+npx cdk deploy --all --profile ssminji-wesang --require-approval broadening
+```
+
+> **첫 배포 시 주의**: K8sAgentStack의 Gateway는 SSM에서 EKS MCP Server ARN을 참조하지만, 이 값은 Phase 3에서 생성됩니다. `deploy.sh`는 이를 자동으로 처리합니다 (placeholder 생성 → CDK 배포 → Phase 3 후 재배포). 개별 Phase를 수동 실행할 경우, Phase 1 전에 placeholder SSM 파라미터를 먼저 생성해야 합니다.
+>
+> IstioAgentStack은 K8sAgentStack의 SSM 파라미터(EKS MCP Server ARN)를 참조하므로, K8sAgentStack이 먼저 배포되어야 합니다. `--all` 옵션 사용 시 CDK가 의존 순서를 자동으로 처리합니다.
+
+### 배포 확인
+
+```bash
+# 생성된 SSM 파라미터 확인
+aws ssm get-parameters-by-path --path /a2a/app/k8s/agentcore --recursive --profile ssminji-wesang --region ap-northeast-2
+aws ssm get-parameters-by-path --path /app/incident/agentcore --recursive --profile ssminji-wesang --region ap-northeast-2
+aws ssm get-parameters-by-path --path /app/istio/agentcore --recursive --profile ssminji-wesang --region ap-northeast-2
+```
+
+---
+
+## Phase 2: EKS RBAC 설정
+
+Chaos Lambda가 EKS 클러스터의 Pod/Deployment를 조작하려면 RBAC 권한이 필요합니다.
+
+```bash
+cd agents/incident-agent/prerequisite
+bash setup-eks-rbac.sh
+```
+
+이 스크립트가 수행하는 작업:
+- `ClusterRole: chaos-lambda-role` 생성 (pods get/list/create/delete, deployments get/list/patch/update)
+- `ClusterRoleBinding: chaos-lambda-binding` 생성
+- `aws-auth ConfigMap`에 `incident-tools-lambda-role` IAM Role 매핑
+
+---
+
+## Phase 3: EKS MCP Server Runtime 배포
+
+K8s Agent와 Istio Agent가 사용하는 EKS MCP Server를 AgentCore Runtime으로 배포합니다.
+
+```bash
+cd agents/k8s-agent/prerequisite/eks-mcp-server
 bash deploy-eks-mcp-server.sh
-
-# 3. EKS 워크로드 배포 (Oregon)
-cd workshop-module-5/eks-sample-workload
-bash deploy-eks-workload.sh
-
-# 4. K8s Agent 배포 (Virginia - AgentCore Runtime)
-cd workshop-module-5/module-5/agentcore-k8s-agent
-agentcore deploy
-
-# 5. Gateway 생성 (Virginia)
-python scripts/agentcore_gateway.py create
 ```
 
----
+이 스크립트가 수행하는 작업:
+1. SSM에서 Runtime Cognito 정보 읽기 (CDK가 생성한 값)
+2. `.bedrock_agentcore.yaml`에 JWT Authorizer 설정
+3. `agentcore deploy`로 Runtime 배포
+4. Runtime ARN을 SSM에 저장 (`/a2a/app/k8s/agentcore/eks_mcp_server_arn`)
 
-## Module 6: Incident Analysis Agent
-
-### SSM Prefix: `/app/incident/agentcore/`
-
-### 배포 순서
+### 배포 확인
 
 ```bash
-export AWS_PROFILE=netaiops-deploy
-
-# 1. Cognito + IAM (Virginia)
-aws cloudformation deploy \
-  --template-file workshop-module-6/module-6/agentcore-incident-agent/prerequisite/incident-agentcore-cognito.yaml \
-  --stack-name incident-agentcore-cognito \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --region us-east-1
-
-# 2. Lambda 배포 (Virginia)
-cd workshop-module-6/module-6/prerequisite
-bash deploy-incident-lambdas.sh
-
-# 3. CloudWatch Alarms 설정 (Oregon)
-bash setup-alarms.sh
-
-# 4. Incident Agent 배포 (Virginia - AgentCore Runtime)
-cd workshop-module-6/module-6/agentcore-incident-agent
-agentcore deploy
-
-# 5. Gateway 생성 (Virginia)
-python scripts/agentcore_gateway.py create
-```
-
----
-
-## Module 7: Istio Service Mesh Diagnostics Agent
-
-### SSM Prefix: `/app/istio/agentcore/`
-
-### 전제 조건
-- Module 5의 EKS MCP Server가 이미 배포되어 있어야 함 (Gateway의 mcpServer 타겟으로 재사용)
-- EKS 클러스터에 kubectl 연결 가능
-
-### 배포 순서
-
-```bash
-export AWS_PROFILE=netaiops-deploy
-
-# ===== Step 1: Cognito + IAM (Virginia, us-east-1) =====
-aws cloudformation deploy \
-  --template-file workshop-module-7/module-7/prerequisite/istio-agentcore-cognito.yaml \
-  --stack-name istio-agentcore-cognito \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --region us-east-1
-
-# ===== Step 2: Istio 설치 (Oregon EKS, us-west-2) =====
-bash workshop-module-7/module-7/prerequisite/setup-istio.sh
-
-# ===== Step 3: AMP + ADOT Collector (Oregon, us-west-2) =====
-bash workshop-module-7/module-7/prerequisite/setup-amp.sh
-
-# ===== Step 4: 샘플 워크로드 배포 (Oregon EKS) =====
-# retail-store 사이드카 주입 + istio-sample-app (Bookinfo) 배포
-bash workshop-module-7/module-7/prerequisite/setup-sample-app.sh
-
-# ===== Step 5: Prometheus Lambda 배포 (Virginia, us-east-1) =====
-bash workshop-module-7/module-7/prerequisite/deploy-istio-lambdas.sh
-
-# ===== Step 6: Agent 배포 (Virginia - AgentCore Runtime) =====
-cd workshop-module-7/module-7/agentcore-istio-agent
-agentcore deploy
-
-# ===== Step 7: Gateway 생성 (Virginia) =====
-# mcpServer 타겟 (EKS MCP Server 재사용) + Lambda 타겟 (Prometheus) 하이브리드
-python scripts/agentcore_gateway.py create
-
-# ===== Step 8: Frontend 재빌드 =====
-cd app/frontend && npm run build
-```
-
-### 검증
-
-```bash
-# Istio 설치 확인
-istioctl verify-install
-kubectl get pods -n istio-system
-
-# AMP 메트릭 확인
-AMP_ENDPOINT=$(aws ssm get-parameter --name /app/istio/agentcore/amp_query_endpoint \
-  --query 'Parameter.Value' --output text --region us-east-1)
-# awscurl "$AMP_ENDPOINT/api/v1/query?query=istio_requests_total"
-
-# 샘플 앱 확인
-kubectl get pods -n istio-sample
-kubectl get pods -n retail-store
-
-# Lambda 확인
-aws lambda invoke --function-name istio-prometheus-tools \
-  --payload '{"method":"tools/list"}' /tmp/out.json --region us-east-1
-cat /tmp/out.json
-
-# Gateway 타겟 확인
-python scripts/agentcore_gateway.py list-targets
-```
-
-### Fault Injection 테스트
-
-```bash
-# 적용
-kubectl apply -f workshop-module-7/sample-workload/fault-injection/fault-delay-reviews.yaml
-kubectl apply -f workshop-module-7/sample-workload/fault-injection/fault-abort-ratings.yaml
-kubectl apply -f workshop-module-7/sample-workload/fault-injection/circuit-breaker.yaml
-
-# 제거
-kubectl delete -f workshop-module-7/sample-workload/fault-injection/ --ignore-not-found
-```
-
----
-
-## Frontend (통합 Agent Hub)
-
-위치: `app/`
-
-```bash
-# 개발 모드
-cd app/frontend && npm run dev    # React dev server (port 5173)
-cd app/backend && uvicorn main:app --reload --port 8000  # FastAPI
-
-# 프로덕션 빌드
-cd app/frontend && npm run build
-# static 파일이 app/backend/static/ 으로 복사됨
-# uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-### 지원 에이전트
-
-| Agent | Icon | SSM Prefix | Module |
-|-------|------|-----------|--------|
-| K8s Diagnostics | ☸ | `/a2a/app/k8s/agentcore` | 5 |
-| Incident Analysis | 🔍 | `/app/incident/agentcore` | 6 |
-| Istio Mesh Diagnostics | ⚡ | `/app/istio/agentcore` | 7 |
-
----
-
-## SSM Parameter Convention
-
-각 모듈은 고유한 SSM prefix를 사용합니다:
-
-```
-/{prefix}/
-  cognito_pool_id          # Cognito User Pool ID
-  cognito_domain           # Cognito 도메인
-  cognito_provider         # Cognito Provider 이름
-  cognito_discovery_url    # OIDC Discovery URL
-  cognito_token_url        # Token 엔드포인트
-  machine_client_id        # M2M Client ID
-  machine_client_secret    # M2M Client Secret
-  web_client_id            # Web Client ID
-  cognito_auth_scope       # OAuth2 Scope
-  gateway_id               # MCP Gateway ID
-  gateway_name             # MCP Gateway 이름
-  gateway_arn              # MCP Gateway ARN
-  gateway_url              # MCP Gateway URL
-  gateway_iam_role         # Gateway 실행 IAM Role ARN
-  agent_runtime_arn        # AgentCore Runtime ARN
-  memory_id                # AgentCore Memory ID
-  user_id                  # 기본 User ID
-```
-
-## Troubleshooting
-
-```bash
-# AWS 계정 확인
-aws sts get-caller-identity --profile netaiops-deploy
-
-# EKS 연결 갱신
-aws eks update-kubeconfig --name netaiops-eks-cluster --region us-west-2 --profile netaiops-deploy
-
-# SSM 파라미터 조회
-aws ssm get-parameters-by-path --path /app/istio/agentcore --recursive --region us-east-1 --profile netaiops-deploy
-
-# AgentCore 런타임 상태
+cd agents/k8s-agent/prerequisite/eks-mcp-server
 agentcore status
+```
 
-# CloudFormation 스택 상태
-aws cloudformation describe-stacks --stack-name istio-agentcore-cognito --region us-east-1 --query 'Stacks[0].StackStatus'
+---
+
+## Phase 4: Agent Runtime 배포
+
+### K8s Agent
+
+```bash
+cd agents/k8s-agent/agent
+agentcore deploy
+```
+
+### Incident Agent
+
+```bash
+cd agents/incident-agent/agent
+agentcore deploy
+```
+
+### Istio Agent
+
+> Istio Agent가 실제로 동작하려면 Phase 5(Istio 인프라 설정)가 완료되어야 합니다. Runtime 배포 자체는 독립적으로 가능합니다.
+
+```bash
+cd agents/istio-agent/agent
+agentcore deploy
+```
+
+---
+
+## Phase 5: 샘플 워크로드 및 Istio 인프라 설정
+
+에이전트의 진단/모니터링 대상이 되는 샘플 워크로드를 배포합니다.
+
+```bash
+# EKS 클러스터 + retail-store 앱 + Istio 인프라 + istio-sample 앱 한 번에 배포
+./sample-workloads/retail-store/deploy-eks-workload.sh deploy-all
+
+# Istio 인프라만 별도 설정 (클러스터가 이미 존재하는 경우)
+./sample-workloads/retail-store/deploy-eks-workload.sh setup-istio
+```
+
+각 워크로드의 상세 배포 방법 및 에이전트 의존성은 개별 README를 참조하세요:
+- [retail-store README](../sample-workloads/retail-store/README.md) — EKS Retail Store 앱 (K8s/Incident Agent 대상)
+- [istio-sample README](../sample-workloads/istio-sample/README.md) — Istio Bookinfo 앱 (Istio Agent 필수)
+
+---
+
+## 선택적 설정
+
+### GitHub 연동 설정
+
+Incident Agent의 GitHub Issues 자동 생성 기능을 사용하려면:
+
+```bash
+cd agents/incident-agent/prerequisite
+bash setup-github.sh
+```
+
+GitHub PAT (`repo` scope)와 리포지토리 이름을 입력하면 SSM에 저장됩니다.
+
+### CloudWatch Alarms 수동 설정
+
+CDK가 자동으로 Alarm을 생성하지만, 수동으로 설정하려면:
+
+```bash
+cd agents/incident-agent/prerequisite
+bash setup-alarms.sh
+```
+
+생성되는 Alarm:
+
+| Alarm | 조건 |
+|-------|------|
+| `netaiops-cpu-spike` | Pod CPU > 80% (2/3 datapoints, 60s) |
+| `netaiops-pod-restarts` | Container restarts > 3 (5분) |
+| `netaiops-node-cpu-high` | Node CPU > 85% (2/3 datapoints, 60s) |
+
+---
+
+## 전체 배포 순서 요약
+
+```
+[Phase 1] CDK 인프라 배포
+  * 첫 배포 시: EKS MCP Server ARN placeholder를 SSM에 자동 생성
+  npx cdk deploy --all
+  └── K8sAgentStack (Cognito, Gateway, Runtime 설정)
+  └── IncidentAgentStack (Cognito, 6 Lambda, Gateway, Runtime 설정, SNS/Alarm)
+  └── IstioAgentStack (Cognito, 2 Lambda, Gateway, Runtime 설정)
+          │
+[Phase 2] EKS RBAC 설정
+  bash agents/incident-agent/prerequisite/setup-eks-rbac.sh
+          │
+[Phase 3] EKS MCP Server Runtime 배포
+  bash agents/k8s-agent/prerequisite/eks-mcp-server/deploy-eks-mcp-server.sh
+  * 첫 배포 시: K8sAgentStack을 실제 ARN으로 자동 재배포
+          │
+[Phase 4] Agent Runtime 배포
+  cd agents/k8s-agent/agent && agentcore deploy
+  cd agents/incident-agent/agent && agentcore deploy
+  cd agents/istio-agent/agent && agentcore deploy
+          │
+[Phase 5] Istio 인프라 설정 (선택)
+  ./sample-workloads/retail-store/deploy-eks-workload.sh deploy-all   # EKS + 앱 + Istio 한 번에
+  ./sample-workloads/retail-store/deploy-eks-workload.sh setup-istio  # Istio만 별도 설정
+```
+
+---
+
+## 배포 검증
+
+### Agent Runtime 상태 확인
+
+```bash
+# 각 Agent 디렉토리에서
+cd agents/k8s-agent/agent && agentcore status
+cd agents/incident-agent/agent && agentcore status
+cd agents/istio-agent/agent && agentcore status
+```
+
+### Lambda 함수 확인
+
+```bash
+# Incident Agent Lambda (6개)
+aws lambda list-functions --query "Functions[?starts_with(FunctionName,'incident-')].[FunctionName,State]" --output table --profile ssminji-wesang --region ap-northeast-2
+
+# Istio Agent Lambda (2개)
+aws lambda list-functions --query "Functions[?starts_with(FunctionName,'istio-')].[FunctionName,State]" --output table --profile ssminji-wesang --region ap-northeast-2
+```
+
+### CloudWatch Alarm 확인
+
+```bash
+aws cloudwatch describe-alarms --alarm-name-prefix netaiops --query "MetricAlarms[].[AlarmName,StateValue]" --output table --profile ssminji-wesang --region ap-northeast-2
+```
+
+### Lambda 개별 테스트
+
+```bash
+# Container Insight Lambda
+aws lambda invoke --function-name incident-container-insight-tools \
+  --payload '{"name":"container-insight-cluster-overview","arguments":{"cluster_name":"netaiops-eks-cluster"}}' \
+  /tmp/out.json --profile ssminji-wesang --region ap-northeast-2
+cat /tmp/out.json | python3 -m json.tool
+
+# Istio Prometheus Lambda
+aws lambda invoke --function-name istio-prometheus-tools \
+  --payload '{"method":"tools/list"}' \
+  /tmp/out.json --profile ssminji-wesang --region ap-northeast-2
+cat /tmp/out.json | python3 -m json.tool
+```
+
+---
+
+## 스택 삭제
+
+```bash
+# CDK 스택 전체 삭제
+cd infra-cdk
+npx cdk destroy --all --profile ssminji-wesang
+
+# AgentCore Runtime 삭제 (각 agent 디렉토리에서)
+cd agents/k8s-agent/agent && agentcore destroy
+cd agents/incident-agent/agent && agentcore destroy
+cd agents/istio-agent/agent && agentcore destroy
+
+# EKS MCP Server Runtime 삭제
+cd agents/k8s-agent/prerequisite/eks-mcp-server && agentcore destroy
+
+# Istio 삭제 (설치한 경우)
+istioctl uninstall --purge -y
+kubectl delete namespace istio-system istio-sample
 ```

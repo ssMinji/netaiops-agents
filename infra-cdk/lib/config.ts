@@ -3,13 +3,13 @@
  */
 
 export const CONFIG = {
-  account: '175678592674',
-  primaryRegion: 'us-east-1',
-  alarmRegion: 'us-west-2',
-  profile: 'netaiops-deploy',
+  account: '830858425797',
+  primaryRegion: 'ap-northeast-2',
+  alarmRegion: 'ap-northeast-2',
+  profile: 'ssminji-wesang',
   eksClusterName: 'netaiops-eks-cluster',
 
-  module5: {
+  k8sAgent: {
     ssmPrefix: '/a2a/app/k8s/agentcore',
     agentPool: {
       name: 'K8sAgentPool',
@@ -38,7 +38,7 @@ export const CONFIG = {
     },
   },
 
-  module6: {
+  incidentAgent: {
     ssmPrefix: '/app/incident/agentcore',
     cognitoPool: {
       name: 'IncidentAnalysisPool',
@@ -104,7 +104,32 @@ export const CONFIG = {
     },
   },
 
-  // Tool schemas for Module 6 Lambda gateway targets
+  istioAgent: {
+    ssmPrefix: '/app/istio/agentcore',
+    cognitoPool: {
+      name: 'IstioMeshPool',
+      domainPrefix: 'istioagent',
+      resourceServerIdentifier: 'istio-mesh-server',
+      machineClientName: 'IstioMachineClient',
+      webClientName: 'IstioWebClient',
+      webCallbackUrl: 'http://localhost:8501/',
+    },
+    lambdas: {
+      prometheus: { name: 'istio-prometheus-tools', dir: 'prometheus' },
+      fault: { name: 'istio-fault-tools', dir: 'fault' },
+    },
+    gateway: {
+      name: 'istio-mesh-gateway',
+      description: 'AgentCore Istio Mesh Diagnostics Gateway',
+      oauthProviderName: 'istio-eks-mcp-server-oauth',
+      k8sSsmPrefix: '/a2a/app/k8s/agentcore',
+    },
+    runtime: {
+      name: 'a2a_istio_mesh_agent_runtime',
+    },
+  },
+
+  // Tool schemas for Lambda gateway targets
   toolSchemas: {
     datadog: [
       {
@@ -245,6 +270,70 @@ export const CONFIG = {
             period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
           },
           required: ['cluster_name'],
+        },
+      },
+    ],
+    istioPrometheus: [
+      {
+        name: 'istio-query-workload-metrics',
+        description: 'Query Istio RED (Rate, Error, Duration) metrics per workload.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            namespace: { type: 'string', description: 'Kubernetes namespace filter (optional, default: all)' },
+            workload: { type: 'string', description: 'Specific workload name filter (optional)' },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 15' },
+            step: { type: 'string', description: "Query step/resolution (e.g., '1m', '5m'). Default: '1m'" },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'istio-query-service-topology',
+        description: 'Query Istio service-to-service traffic topology showing request rates and error codes between services.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            namespace: { type: 'string', description: 'Kubernetes namespace filter (optional)' },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 15' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'istio-query-tcp-metrics',
+        description: 'Query Istio TCP connection metrics (connections opened/closed, bytes sent/received).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            namespace: { type: 'string', description: 'Kubernetes namespace filter (optional)' },
+            workload: { type: 'string', description: 'Specific workload name filter (optional)' },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 15' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'istio-query-control-plane-health',
+        description: 'Query Istio control plane (istiod) health metrics including xDS push latency, errors, and config conflicts.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 30' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'istio-query-proxy-resource-usage',
+        description: 'Query Envoy sidecar proxy resource usage (CPU, memory) across workloads.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            namespace: { type: 'string', description: 'Kubernetes namespace filter (optional)' },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 15' },
+          },
+          required: [],
         },
       },
     ],

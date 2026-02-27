@@ -18,9 +18,9 @@ export interface AlarmConfig {
 }
 
 export interface CrossRegionAlarmProps {
-  /** Region for SNS topic and CloudWatch alarms (e.g. us-west-2) */
+  /** Region for SNS topic and CloudWatch alarms */
   alarmRegion: string;
-  /** Region where the Lambda function is deployed (e.g. us-east-1) */
+  /** Region where the Lambda function is deployed */
   lambdaRegion: string;
   /** SNS topic name */
   snsTopicName: string;
@@ -35,8 +35,8 @@ export interface CrossRegionAlarmProps {
 }
 
 /**
- * Custom Resource that creates SNS topic + CloudWatch alarms in a remote region (us-west-2)
- * and subscribes a Lambda function (us-east-1) to the SNS topic for cross-region triggering.
+ * Custom Resource that creates SNS topic + CloudWatch alarms in the alarm region
+ * and subscribes a Lambda function to the SNS topic for alarm triggering.
  */
 export class CrossRegionAlarm extends Construct {
   public readonly snsTopicArn: string;
