@@ -35,4 +35,4 @@
 
 ## Appendix
 
-- [Prompt Caching](PROMPT-CACHING.md)
+- [Prompt Caching](appendix/prompt-caching.md)
