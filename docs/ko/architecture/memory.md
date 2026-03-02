@@ -145,7 +145,7 @@ aws bedrock-agentcore-control update-memory \
 
 ### 패턴 A: Network / K8s / Istio
 
-이 에이전트들은 동적 네임스페이스 탐색과 선택적 시드 데이터를 사용하는 `MemoryHookProvider`를 사용합니다.
+이 에이전트들은 동적 네임스페이스 탐색을 사용하는 `MemoryHookProvider`를 사용합니다.
 
 **Hook 이벤트:**
 - `MessageAddedEvent` → 관련 메모리를 검색하여 사용자 쿼리 앞에 추가
@@ -172,8 +172,6 @@ class MemoryHookProvider:
             memory_id=..., actor_id=..., session_id=...,
             messages=[(user_query, "USER"), (agent_response, "ASSISTANT")])
 ```
-
-**시드 메모리**: 첫 실행 시, 이 에이전트들은 `create_event()`를 사용하여 인프라 컨텍스트(예: EKS 클러스터 정보, 네트워크 토폴로지)로 메모리를 미리 채웁니다. 이를 통해 사용자 대화 이전에도 에이전트가 기본 지식을 보유할 수 있습니다.
 
 ### 패턴 B: Incident Agent
 
@@ -208,7 +206,7 @@ class MemoryHook:
 |---------|----------------------|----------|
 | 네임스페이스 탐색 | 동적 (전략 API에서) | 하드코딩 (2개 네임스페이스) |
 | STM (최근 턴) | 미사용 | 초기화 시 마지막 5턴 주입 |
-| 시드 메모리 | 있음 (인프라 컨텍스트) | 없음 |
+| 시드 메모리 | 없음 | 없음 |
 | 저장 방법 | `create_event()` (배치) | `save_conversation()` (메시지별) |
 | 검색 Hook | `MessageAddedEvent` | `MessageAddedEvent` |
 | 저장 Hook | `AfterInvocationEvent` | `MessageAddedEvent` |
@@ -220,7 +218,7 @@ class MemoryHook:
 | 세션 간 컨텍스트 회상만 필요 | **패턴 A** (동적 네임스페이스) | 더 간단한 설정, 자동 네임스페이스 탐색 |
 | 세션 내 대화 연속성 필요 | **패턴 B** (STM 주입) | `get_last_k_turns()`가 비동기 추출 대기 없이 즉각적인 컨텍스트 제공 |
 | 여러 컨텍스트 유형 (예: 진단 + 이력) | **패턴 B** (이중 네임스페이스) | 별도 네임스페이스로 대상 지정 검색 가능 |
-| 사전 채워진 도메인 지식 | **패턴 A** (시드 메모리) | 초기화 시 `create_event()`로 기본 컨텍스트 채움 |
+| 사전 채워진 도메인 지식 | 해당 없음 | 해당 없음 |
 | 최소한의 구현 노력 | **패턴 A** | 단일 클래스, 구현할 Hook 이벤트가 적음 |
 
 **핵심 고려사항**: 시맨틱 메모리 추출은 비동기적입니다. 에이전트가 *현재* 세션의 컨텍스트가 필요한 경우(이전 세션뿐만 아니라), STM(패턴 B)을 구현해야 합니다. 시맨틱 검색만으로는 아직 추출되지 않은 최근 저장된 이벤트를 놓치게 됩니다.

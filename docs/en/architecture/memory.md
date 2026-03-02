@@ -145,7 +145,7 @@ Two distinct patterns are used:
 
 ### Pattern A: Network / K8s / Istio
 
-These agents use `MemoryHookProvider` with dynamic namespace discovery and optional seed data.
+These agents use `MemoryHookProvider` with dynamic namespace discovery.
 
 **Hook events:**
 - `MessageAddedEvent` → Retrieve relevant memories and prepend to user query
@@ -172,8 +172,6 @@ class MemoryHookProvider:
             memory_id=..., actor_id=..., session_id=...,
             messages=[(user_query, "USER"), (agent_response, "ASSISTANT")])
 ```
-
-**Seed memory**: On first run, these agents pre-populate memory with infrastructure context (e.g., EKS cluster info, network topology) using `create_event()`. This ensures the agent has baseline knowledge even before user conversations.
 
 ### Pattern B: Incident Agent
 
@@ -208,7 +206,7 @@ class MemoryHook:
 |---------|----------------------|----------|
 | Namespace discovery | Dynamic (from strategy API) | Hardcoded (2 namespaces) |
 | STM (recent turns) | Not used | Last 5 turns injected at init |
-| Seed memory | Yes (infrastructure context) | No |
+| Seed memory | No | No |
 | Storage method | `create_event()` (batch) | `save_conversation()` (per message) |
 | Retrieval hook | `MessageAddedEvent` | `MessageAddedEvent` |
 | Save hook | `AfterInvocationEvent` | `MessageAddedEvent` |
@@ -220,7 +218,7 @@ class MemoryHook:
 | Cross-session context recall only | **Pattern A** (Dynamic namespace) | Simpler setup, automatic namespace discovery |
 | In-session conversation continuity | **Pattern B** (STM injection) | `get_last_k_turns()` provides immediate context without waiting for async extraction |
 | Multiple context types (e.g., diagnostics + history) | **Pattern B** (Dual namespace) | Separate namespaces enable targeted retrieval |
-| Pre-populated domain knowledge | **Pattern A** (Seed memory) | `create_event()` at init populates baseline context |
+| Pre-populated domain knowledge | N/A | N/A |
 | Minimal implementation effort | **Pattern A** | Single class, fewer hook events to implement |
 
 **Key consideration**: Semantic memory extraction is asynchronous. If your agent needs context from the *current* session (not just previous sessions), you must implement STM (Pattern B) — semantic retrieval alone will miss recently saved events that haven't been extracted yet.
