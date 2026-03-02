@@ -37,53 +37,6 @@ Any AgentCore-based agent project follows this deployment sequence regardless of
 
 **Key insight**: CDK/CloudFormation cannot manage AgentCore-specific resources (Gateway, Runtime, Credential Provider). These require the AgentCore CLI or boto3 API. Plan your deployment pipeline to handle both IaC and CLI steps.
 
-## Standalone CDK Build/Deploy
-
-Use this when building or deploying CDK stacks individually without `deploy.sh`. If you run `deploy.sh`, Phase 1 performs this step automatically — no need to run it separately.
-
-```bash
-cd infra-cdk
-
-# Install dependencies
-npm install
-
-# Type check
-npx tsc --noEmit
-
-# Synthesize CloudFormation templates (optional, for review)
-npx cdk synth
-
-# Deploy all stacks
-npx cdk deploy --all --profile <AWS_PROFILE>
-
-# Deploy specific stack
-npx cdk deploy IncidentAgentStack --profile <AWS_PROFILE>
-```
-
-## CDK Stack Configuration
-
-### Stack Deployment Order
-
-CDK stacks are defined in `bin/netaiops-infra.ts` and deployed in this order:
-
-| Order | Stack | Description | Dependencies |
-|-------|-------|-------------|--------------|
-| 1 | `K8sAgentStack` | Cognito, Gateway, Runtime config | None (deploys first) |
-| 2 | `IncidentAgentStack` | Cognito, 6 Lambda, Gateway, Monitoring | None |
-| 3 | `IstioAgentStack` | Cognito, 2 Lambda, Hybrid Gateway | Reads K8s Agent SSM params |
-| 4 | `NetworkAgentStack` | Cognito, 2 Lambda, Gateway | None |
-
-**Cross-stack dependency**: IstioAgentStack reads K8s Agent's SSM parameters (`eks_mcp_server_arn`, `eks_mcp_client_id`, etc.) at deploy time. K8sAgentStack must be deployed first.
-
-### Stack Resources
-
-| Stack | Resources Created |
-|-------|------------------|
-| **K8sAgentStack** | Cognito (Agent Pool + Runtime Pool), IAM Role, MCP Gateway (mcpServer target), Runtime config |
-| **IncidentAgentStack** | Cognito, IAM Role, 6 Docker Lambda, MCP Gateway (Lambda targets), Runtime config, SNS + CloudWatch Alarms |
-| **IstioAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda hybrid), Runtime config |
-| **NetworkAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda hybrid), Runtime config |
-
 ## Agent Dependencies
 
 ```
@@ -231,22 +184,7 @@ Phase 4 (Agent deploy)
 
 After `agentcore deploy`, the following steps are required for any AgentCore agent. These are not specific to this project — they apply to any agent using Cognito JWT auth and SSM-based configuration:
 
-### 1. Verify JWT Authorizer
-
-`agentcore deploy` applies the `authorizer_configuration` from `.bedrock_agentcore.yaml`. If the yaml contains the correct `customJWTAuthorizer` block, no action is needed. If the field is `null`, update the yaml before deploying:
-
-```yaml
-# .bedrock_agentcore.yaml
-authorizer_configuration:
-  customJWTAuthorizer:
-    allowedClients:
-      - <COGNITO_CLIENT_ID>
-    discoveryUrl: https://cognito-idp.<REGION>.amazonaws.com/<POOL_ID>/.well-known/openid-configuration
-```
-
-If already deployed with `null`, restore via API without redeploying (see [Troubleshooting](../troubleshooting/README.md#403-authorization-method-mismatch)).
-
-### 2. Register Agent ARN in SSM
+### 1. Register Agent ARN in SSM
 
 ```bash
 aws ssm put-parameter \
@@ -255,7 +193,7 @@ aws ssm put-parameter \
   --profile <AWS_PROFILE> --region us-east-1
 ```
 
-### 3. Add SSM Permissions to Execution Role
+### 2. Add SSM Permissions to Execution Role
 
 If `agentcore deploy` created a new execution role:
 
@@ -272,7 +210,7 @@ aws iam put-role-policy --role-name <ROLE_NAME> \
   }'
 ```
 
-### 4. Verify Credential Provider
+### 3. Verify Credential Provider
 
 ```bash
 agentcore identity list-credential-providers
