@@ -6,10 +6,10 @@ NetAIOps includes four specialized AI agents, each designed for a specific infra
 
 | Agent | Domain | MCP Tools | Scenarios |
 |-------|--------|-----------|-----------|
+| [Network](network.md) | AWS networking | Network MCP Server, DNS, CloudWatch | 4 |
 | [Incident](incident.md) | Incident investigation | Datadog, OpenSearch, Container Insights, Chaos, GitHub | 4 |
 | [K8s](k8s.md) | Kubernetes/EKS | EKS MCP Server | 4 |
 | [Istio](istio.md) | Service mesh | EKS MCP, Prometheus, Fault Injection | 5 |
-| [Network](network.md) | AWS networking | Network MCP Server, DNS, CloudWatch | 4 |
 
 ## Common Architecture
 

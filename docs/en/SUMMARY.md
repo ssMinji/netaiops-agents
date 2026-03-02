@@ -11,10 +11,10 @@
 ## Agents
 
 - [Agents Overview](agents/README.md)
+- [Network Diagnostics Agent](agents/network.md)
 - [Incident Analysis Agent](agents/incident.md)
 - [K8s Diagnostics Agent](agents/k8s.md)
 - [Istio Mesh Agent](agents/istio.md)
-- [Network Diagnostics Agent](agents/network.md)
 
 ## Web UI
 

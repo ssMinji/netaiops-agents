@@ -11,10 +11,10 @@
 ## 에이전트
 
 - [에이전트 개요](agents/README.md)
+- [네트워크 진단 에이전트](agents/network.md)
 - [인시던트 분석 에이전트](agents/incident.md)
 - [K8s 진단 에이전트](agents/k8s.md)
 - [Istio 메시 에이전트](agents/istio.md)
-- [네트워크 진단 에이전트](agents/network.md)
 
 ## Web UI
 

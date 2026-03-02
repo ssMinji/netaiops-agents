@@ -6,10 +6,10 @@ NetAIOps는 각각 특정 인프라 도메인을 위해 설계된 4개의 전문
 
 | 에이전트 | 도메인 | MCP 도구 | 시나리오 |
 |-------|--------|-----------|-----------|
+| [Network](network.md) | AWS 네트워킹 | Network MCP Server, DNS, CloudWatch | 4 |
 | [Incident](incident.md) | 인시던트 조사 | Datadog, OpenSearch, Container Insights, Chaos, GitHub | 4 |
 | [K8s](k8s.md) | Kubernetes/EKS | EKS MCP Server | 4 |
 | [Istio](istio.md) | 서비스 메시 | EKS MCP, Prometheus, Fault Injection | 5 |
-| [Network](network.md) | AWS 네트워킹 | Network MCP Server, DNS, CloudWatch | 4 |
 
 ## 공통 아키텍처
 
