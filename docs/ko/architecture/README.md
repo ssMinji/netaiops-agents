@@ -1,10 +1,10 @@
-# System Architecture
+# 시스템 아키텍처
 
-## Overview
+## 개요
 
-NetAIOps follows a layered architecture where a React frontend communicates with a FastAPI backend, which orchestrates AI agents deployed on AWS Bedrock AgentCore. Each agent accesses infrastructure tools through MCP (Model Context Protocol) Gateways.
+NetAIOps는 계층형 아키텍처를 따릅니다. React 프론트엔드가 FastAPI 백엔드와 통신하고, 백엔드는 AWS Bedrock AgentCore에 배포된 AI 에이전트를 오케스트레이션합니다. 각 에이전트는 MCP(Model Context Protocol) Gateway를 통해 인프라 도구에 접근합니다.
 
-## Component Diagram
+## 컴포넌트 다이어그램
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -41,9 +41,9 @@ NetAIOps follows a layered architecture where a React frontend communicates with
                   Chaos, GitHub
 ```
 
-## Authentication Flow
+## 인증 흐름
 
-All agent-to-gateway communication uses Cognito M2M (machine-to-machine) tokens:
+모든 에이전트-게이트웨이 통신은 Cognito M2M(machine-to-machine) 토큰을 사용합니다.
 
 ```
 1. Backend reads client_id/secret from SSM Parameter Store
@@ -54,18 +54,18 @@ All agent-to-gateway communication uses Cognito M2M (machine-to-machine) tokens:
 6. Agent uses OAuth2 credential provider for MCP Gateway access
 ```
 
-### Dual Cognito Pool Design
+### 이중 Cognito 풀 설계
 
-Each agent uses two Cognito User Pools:
+각 에이전트는 두 개의 Cognito User Pool을 사용합니다.
 
-| Pool | Purpose | Used By |
+| 풀 | 목적 | 사용처 |
 |------|---------|---------|
-| Agent Pool | JWT authorizer for agent runtime | Backend → Agent |
-| Runtime Pool | OAuth2 credential for MCP gateway | Agent → MCP Gateway |
+| Agent Pool | 에이전트 런타임의 JWT 인증 | 백엔드 → 에이전트 |
+| Runtime Pool | MCP Gateway의 OAuth2 자격 증명 | 에이전트 → MCP Gateway |
 
-## Streaming Protocol
+## 스트리밍 프로토콜
 
-The system uses Server-Sent Events (SSE) for real-time streaming:
+시스템은 실시간 스트리밍을 위해 Server-Sent Events(SSE)를 사용합니다.
 
 ```
 Frontend ──POST /api/chat──► Backend ──HTTP Stream──► AgentCore Runtime
@@ -75,18 +75,18 @@ Frontend ──POST /api/chat──► Backend ──HTTP Stream──► AgentC
                            ◄──── __TOOLS_JSON__[...]
 ```
 
-### In-Band Marker Protocol
+### 인밴드 마커 프로토콜
 
-Agents emit metadata as in-band markers at the end of their response stream:
+에이전트는 응답 스트림 끝에 메타데이터를 인밴드 마커로 전송합니다.
 
-| Marker | Format | Content |
-|--------|--------|---------|
-| `__TOOLS_JSON__` | `__TOOLS_JSON__["tool-a","tool-b"]` | List of MCP tools used |
-| `__METRICS_JSON__` | `__METRICS_JSON__{"input_tokens":...}` | Token usage metrics |
+| 마커 | 형식 | 내용 |
+|------|------|------|
+| `__TOOLS_JSON__` | `__TOOLS_JSON__["tool-a","tool-b"]` | 사용된 MCP 도구 목록 |
+| `__METRICS_JSON__` | `__METRICS_JSON__{"input_tokens":...}` | 토큰 사용량 메트릭 |
 
-The backend parses these markers, strips them from the text stream, and sends a final `{"metrics": {...}}` SSE event combining timing data, token usage, and tool list.
+백엔드는 이 마커를 파싱하여 텍스트 스트림에서 제거하고, 타이밍 데이터, 토큰 사용량, 도구 목록을 결합한 최종 `{"metrics": {...}}` SSE 이벤트를 전송합니다.
 
-## Data Flow: Chat Request
+## 데이터 흐름: 채팅 요청
 
 ```
 1. User types message in ChatPage
@@ -103,19 +103,19 @@ The backend parses these markers, strips them from the text stream, and sends a 
 12. Frontend renders markdown + metrics footer + tool badges
 ```
 
-## Infrastructure Layers
+## 인프라 레이어
 
-| Layer | Managed By | Resources |
-|-------|-----------|-----------|
+| 레이어 | 관리 방법 | 리소스 |
+|-------|-----------|--------|
 | CDK | `npx cdk deploy` | Cognito, IAM, Lambda, SSM, CloudWatch |
 | MCP Server | `agentcore deploy` | EKS MCP Server, Network MCP Server |
 | MCP Gateway | boto3 API | Gateway, Gateway Targets |
-| Agent Runtime | `agentcore deploy` | Agent containers (ARM64) |
+| Agent Runtime | `agentcore deploy` | 에이전트 컨테이너 (ARM64) |
 | Web UI | Docker + CloudFront | FastAPI + React SPA |
 
-## Full System Diagram
+## 전체 시스템 다이어그램
 
-![Full Architecture](../full-architecture.png)
+![전체 아키텍처](../../full-architecture.png)
 
 ```
 us-east-1
@@ -163,28 +163,28 @@ us-east-1
                                                      └─────────────────────┘
 ```
 
-## Per-Agent Stack Architecture
+## 에이전트별 스택 아키텍처
 
 ### K8s Agent Stack
 
-- **Dual Cognito Pool**: Agent auth (K8sAgentPool) and Runtime auth (EksMcpServerPool) are separated
-- **Gateway → Runtime OAuth2**: Gateway performs separate OAuth2 auth when calling EKS MCP Server
-- **EKS MCP Server deployed via CLI**: Not CDK — deployed with `agentcore deploy`, ARN stored manually in SSM
-- **Istio Agent reuses EKS MCP Server**: Shares ARN/OAuth info via SSM
+- **이중 Cognito Pool**: Agent auth(K8sAgentPool)과 Runtime auth(EksMcpServerPool)가 분리됨
+- **Gateway → Runtime OAuth2**: Gateway가 EKS MCP Server 호출 시 별도 OAuth2 인증 수행
+- **EKS MCP Server는 CLI로 배포**: CDK가 아닌 `agentcore deploy`로 배포, ARN은 SSM에 수동 저장
+- **Istio Agent가 EKS MCP Server 재사용**: SSM을 통해 ARN/OAuth 정보 공유
 
 ### Incident Agent Stack
 
-- **Single Cognito Pool**: Agent auth only (IncidentAnalysisPool)
-- **6 Lambda tools**: 3 gateway-connected (Datadog, OpenSearch, Container Insights) + 3 direct-invoked (Chaos, Alarm Trigger, GitHub)
-- **Monitoring**: CloudWatch Alarm → SNS → Alarm Trigger Lambda (auto-analysis)
+- **단일 Cognito Pool**: Agent auth만 존재(IncidentAnalysisPool)
+- **6개 Lambda 도구**: Gateway 연결 3개(Datadog, OpenSearch, Container Insights) + 직접 호출 3개(Chaos, Alarm Trigger, GitHub)
+- **모니터링**: CloudWatch Alarm → SNS → Alarm Trigger Lambda(자동 분석)
 
-### Istio Agent Stack (Hybrid)
+### Istio Agent Stack (하이브리드)
 
-- **Cross-stack dependency**: Reads K8s Agent's SSM parameters for EKS MCP Server access
-- **Hybrid gateway**: mcpServer target (EKS MCP) + Lambda target (Prometheus)
-- **Fault injection is UI-driven**: Agent does read-only diagnosis; fault injection goes through FastAPI → Lambda directly
+- **크로스 스택 종속성**: K8s Agent의 SSM 파라미터를 읽어 EKS MCP Server 접근
+- **하이브리드 게이트웨이**: mcpServer 타겟(EKS MCP) + Lambda 타겟(Prometheus)
+- **Fault injection은 UI 주도**: 에이전트는 읽기 전용 진단, fault injection은 FastAPI → Lambda 직접 호출
 
-### Istio Cross-Stack Dependencies
+### Istio 크로스 스택 종속성
 
 ```
 K8s Agent Stack (deploy first)              Istio Agent Stack (deploy after)
@@ -201,9 +201,9 @@ K8s Agent Stack (deploy first)              Istio Agent Stack (deploy after)
 └──────────────────────────────┘           └──────────────────────────────┘
 ```
 
-## SSM Parameter Structure
+## SSM 파라미터 구조
 
-Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at creation time. Agent Python code reads from SSM at runtime to connect to MCP Gateway.
+각 에이전트의 Cognito, Gateway, Runtime 리소스는 생성 시 SSM에 파라미터를 저장합니다. 에이전트 Python 코드는 런타임에 SSM에서 읽어 MCP Gateway에 연결합니다.
 
 ```
 {ssmPrefix}/
@@ -223,7 +223,7 @@ Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at 
 │   ├── gateway_id
 │   ├── gateway_name
 │   ├── gateway_arn
-│   └── gateway_url              ★ Key parameter for agent → gateway connection
+│   └── gateway_url              ★ 에이전트 → 게이트웨이 연결의 핵심 파라미터
 │
 ├── Runtime (runtime-stack)
 │   ├── runtime_arn
@@ -233,7 +233,7 @@ Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at 
     └── gateway_iam_role
 ```
 
-### SSM Data Flow
+### SSM 데이터 흐름
 
 ```
                         CDK Deploy                       Runtime
@@ -256,7 +256,7 @@ Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at 
  └─────────────────┘                 └──────────────┘                └──────────────┘
 ```
 
-## Related Pages
+## 관련 페이지
 
-- [Cognito Authentication](cognito.md) — Detailed auth flows, per-agent pool configuration
-- [AgentCore Memory](memory.md) — Memory configuration, strategy types, troubleshooting
+- [Cognito 인증](cognito.md) — 상세 인증 흐름, 에이전트별 풀 구성
+- [AgentCore 메모리](memory.md) — 메모리 구성, 전략 유형, 트러블슈팅

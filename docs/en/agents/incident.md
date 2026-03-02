@@ -67,7 +67,7 @@ This reduces token usage for repeated conversations by caching:
 - Tool definitions (`cache_tools`)
 - Last assistant message context (`cache_config`)
 
-See [Prompt Caching](../PROMPT-CACHING.md) for details.
+See [Prompt Caching](../appendix/prompt-caching.md) for details.
 
 ## Chaos Engineering Integration
 
