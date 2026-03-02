@@ -8,175 +8,16 @@
 - AgentCore CLI (PATH에 `agentcore` 존재)
 - Docker (Lambda 이미지 빌드용)
 
-## 배포 단계
+## 배포 개요
 
-전체 배포는 `deploy.sh`로 오케스트레이션되는 4단계를 따릅니다.
+전체 배포는 `deploy.sh`로 오케스트레이션되는 4단계를 따릅니다. 상세 명령어, 배포 후 체크리스트, Web UI 배포는 [빌드 및 배포](../infrastructure/build-deploy.md)를 참조하세요.
 
-### Phase 1: CDK 인프라
-
-```bash
-cd infra-cdk
-npm install
-npx tsc --noEmit
-npx cdk deploy --all --profile netaiops-deploy
 ```
-
-배포되는 것:
-- Cognito User Pool (에이전트당 이중 풀)
-- IAM 역할 (execution, gateway, CodeBuild)
-- Docker Lambda 함수 (Incident 6개, Network 2개 등)
-- SSM 파라미터 (자격 증명, ARN)
-- CloudWatch 알람 (교차 리전)
-
-### Phase 2: EKS RBAC
-
-```bash
-./agents/incident-agent/prerequisite/setup-eks-rbac.sh
+Phase 1: CDK 인프라         →  Cognito, IAM, Lambda, SSM, CloudWatch
+Phase 2: EKS RBAC           →  ClusterRole/ClusterRoleBinding
+Phase 3: MCP Server 런타임  →  EKS MCP Server, Network MCP Server
+Phase 4: Agent 런타임       →  agentcore deploy × 4 에이전트
 ```
-
-EKS 클러스터에 대한 에이전트 액세스를 위한 Kubernetes RBAC 리소스를 생성합니다.
-
-### Phase 3: MCP Server 런타임
-
-```bash
-# EKS MCP Server (K8s 및 Istio 에이전트용)
-cd agents/k8s-agent/prerequisite/eks-mcp-server
-./deploy-eks-mcp-server.sh
-
-# Network MCP Server
-cd agents/network-agent/prerequisite
-./deploy-network-mcp-server.sh
-```
-
-### Phase 4: 에이전트 런타임
-
-```bash
-# 각 에이전트 배포
-for agent in k8s-agent incident-agent istio-agent network-agent; do
-  cd agents/$agent/agent
-  AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
-  cd -
-done
-```
-
-## 배포 후 체크리스트
-
-`agentcore deploy` 후 몇 가지 수동 단계가 필요합니다.
-
-### 1. JWT Authorizer 복원
-
-`agentcore deploy`는 authorizer 구성을 재설정합니다. 복원:
-
-```python
-import boto3
-client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-
-resp = client.get_agent_runtime(agentRuntimeId='<AGENT_ID>')
-client.update_agent_runtime(
-    agentRuntimeId='<AGENT_ID>',
-    agentRuntimeArtifact=resp['agentRuntimeArtifact'],
-    roleArn=resp['roleArn'],
-    networkConfiguration=resp['networkConfiguration'],
-    protocolConfiguration=resp['protocolConfiguration'],
-    authorizerConfiguration={
-        'customJWTAuthorizer': {
-            'discoveryUrl': '<COGNITO_DISCOVERY_URL>',
-            'allowedClients': ['<COGNITO_CLIENT_ID>']
-        }
-    }
-)
-```
-
-### 2. SSM 파라미터 확인
-
-SSM에 `agent_runtime_arn`이 존재하는지 확인:
-
-```bash
-aws ssm get-parameter --name "/app/<agent>/agentcore/agent_runtime_arn" \
-  --profile netaiops-deploy
-```
-
-### 3. 실행 역할에 SSM 권한 추가
-
-`agentcore deploy`가 새 실행 역할을 생성한 경우:
-
-```bash
-aws iam put-role-policy --role-name <ROLE_NAME> \
-  --policy-name SSMGetParameterAccess \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": ["ssm:GetParameter", "ssm:GetParameters"],
-      "Resource": "arn:aws:ssm:us-east-1:175678592674:parameter/app/<agent>/*"
-    }]
-  }'
-```
-
-### 4. Credential Provider 확인
-
-```bash
-agentcore identity list-credential-providers
-```
-
-## Web UI 배포
-
-프론트엔드는 ALB + CloudFront 뒤의 EC2에서 Docker 컨테이너로 서빙됩니다.
-
-### 업데이트 흐름
-
-```bash
-# 1. 프론트엔드 빌드
-cd app/frontend && npm run build
-
-# 2. 백엔드 static에 빌드 복사
-cp -r dist/* ../backend/static/
-
-# 3. EC2로 전송 (S3 + SSM 사용)
-tar czf /tmp/app.tar.gz -C app .
-aws s3 cp /tmp/app.tar.gz s3://netaiops-deploy-175678592674-us-east-1/app.tar.gz
-aws ssm send-command --instance-ids i-0a7e66310340c519c \
-  --document-name "AWS-RunShellScript" \
-  --parameters 'commands=["<download + docker rebuild>"]'
-
-# 4. CloudFront 무효화
-aws cloudfront create-invalidation \
-  --distribution-id EO3603OVKIG2I --paths '/*' \
-  --profile netaiops-deploy
-```
-
-## 에이전트 구성 (.bedrock_agentcore.yaml)
-
-주요 필드:
-
-```yaml
-default_agent: <agent_name>
-agents:
-  <agent_name>:
-    platform: linux/arm64
-    aws:
-      account: '175678592674'
-      region: us-east-1
-      execution_role: arn:aws:iam::175678592674:role/...
-      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/...
-    authorizer_configuration:
-      customJWTAuthorizer:
-        discoveryUrl: https://cognito-idp.us-east-1.amazonaws.com/...
-        allowedClients: [<client_id>]
-    identity:
-      credential_providers:
-        - name: <provider_name>
-          type: cognito
-```
-
-## CDK 스택 리소스
-
-| 스택 | 생성된 리소스 |
-|-------|------------------|
-| **K8sAgentStack** | Cognito (Agent Pool + Runtime Pool), IAM Role, MCP Gateway (mcpServer target), Runtime config |
-| **IncidentAgentStack** | Cognito, IAM Role, 6 Docker Lambda, MCP Gateway (Lambda targets), Runtime config, SNS + CloudWatch Alarms |
-| **IstioAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda hybrid), Runtime config |
-| **NetworkAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda hybrid), Runtime config |
 
 ## 에이전트 종속성
 
@@ -196,6 +37,15 @@ Network Agent (독립)
     └── Network MCP Server Runtime
     └── 2 Lambda (DNS, Network Metrics)
 ```
+
+## CDK 스택 리소스
+
+| 스택 | 생성된 리소스 |
+|-------|------------------|
+| **K8sAgentStack** | Cognito (Agent Pool + Runtime Pool), IAM Role, MCP Gateway (mcpServer target), Runtime config |
+| **IncidentAgentStack** | Cognito, IAM Role, 6 Docker Lambda, MCP Gateway (Lambda targets), Runtime config, SNS + CloudWatch Alarms |
+| **IstioAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda hybrid), Runtime config |
+| **NetworkAgentStack** | Cognito, IAM Role, 2 Docker Lambda, MCP Gateway (mcpServer + Lambda hybrid), Runtime config |
 
 ## SSM 종속성 및 첫 배포 순서
 
@@ -242,9 +92,33 @@ Phase 4 (Agent deploy)
 │  Each agent reads gateway_url from SSM to connect to MCP Gateway
 ```
 
-## 선택적 설정
+## 에이전트 구성 (.bedrock_agentcore.yaml)
 
-### 외부 서비스 SSM 파라미터 (Incident Agent용)
+주요 필드:
+
+```yaml
+default_agent: <agent_name>
+agents:
+  <agent_name>:
+    platform: linux/arm64
+    aws:
+      account: '175678592674'
+      region: us-east-1
+      execution_role: arn:aws:iam::175678592674:role/...
+      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/...
+    authorizer_configuration:
+      customJWTAuthorizer:
+        discoveryUrl: https://cognito-idp.us-east-1.amazonaws.com/...
+        allowedClients: [<client_id>]
+    identity:
+      credential_providers:
+        - name: <provider_name>
+          type: cognito
+```
+
+## 외부 서비스 설정
+
+### SSM 파라미터 (Incident Agent용)
 
 ```bash
 PROFILE="netaiops-deploy"
@@ -308,21 +182,4 @@ aws lambda invoke --function-name incident-container-insight-tools \
   --payload '{"name":"container-insight-cluster-overview","arguments":{"cluster_name":"netaiops-eks-cluster"}}' \
   /tmp/out.json --profile netaiops-deploy --region us-east-1
 cat /tmp/out.json | python3 -m json.tool
-```
-
-## 스택 삭제
-
-```bash
-# CDK 스택
-cd infra-cdk
-npx cdk destroy --all --profile netaiops-deploy
-
-# AgentCore 런타임
-cd agents/k8s-agent/agent && agentcore destroy
-cd agents/incident-agent/agent && agentcore destroy
-cd agents/istio-agent/agent && agentcore destroy
-cd agents/network-agent/agent && agentcore destroy
-
-# EKS MCP Server Runtime
-cd agents/k8s-agent/prerequisite/eks-mcp-server && agentcore destroy
 ```
