@@ -11,7 +11,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROFILE="${AWS_PROFILE:-ssminji-wesang}"
+PROFILE="${AWS_PROFILE:-netaiops-deploy}"
 
 echo -e "${BLUE}================================================${NC}"
 echo -e "${BLUE} NetAIOps 통합 배포${NC}"
@@ -49,7 +49,7 @@ if ! aws sts get-caller-identity --profile "$PROFILE" &>/dev/null; then
 fi
 
 ACCOUNT_ID=$(aws sts get-caller-identity --profile "$PROFILE" --query Account --output text)
-REGION="ap-northeast-2"
+REGION="us-east-1"
 echo -e "${GREEN}AWS Account: ${ACCOUNT_ID} | Profile: ${PROFILE}${NC}"
 echo -e "${GREEN}필수 도구 확인 완료${NC}"
 
@@ -75,6 +75,18 @@ if ! aws ssm get-parameter \
         --profile "$PROFILE" \
         --region "$REGION"
     NEED_K8S_REDEPLOY=true
+fi
+
+if ! aws ssm get-parameter \
+    --name "/app/network/agentcore/network_mcp_server_arn" \
+    --region "$REGION" --profile "$PROFILE" &>/dev/null; then
+    echo -e "${BLUE}첫 배포 감지: Network MCP Server ARN placeholder 생성...${NC}"
+    aws ssm put-parameter \
+        --name "/app/network/agentcore/network_mcp_server_arn" \
+        --value "placeholder-deploy-mcp-server-first" \
+        --type String \
+        --profile "$PROFILE" \
+        --region "$REGION"
 fi
 
 cd "${ROOT_DIR}/infra-cdk"
@@ -114,6 +126,18 @@ bash "${ROOT_DIR}/agents/k8s-agent/prerequisite/eks-mcp-server/deploy-eks-mcp-se
 
 echo -e "${GREEN}Phase 3 완료: EKS MCP Server 배포 성공${NC}"
 
+# =============================================================================
+# Phase 3-B: Network MCP Server Runtime 배포
+# =============================================================================
+echo ""
+echo -e "${BLUE}================================================${NC}"
+echo -e "${BLUE} Phase 3-B: Network MCP Server Runtime 배포${NC}"
+echo -e "${BLUE}================================================${NC}"
+
+bash "${ROOT_DIR}/agents/network-agent/prerequisite/deploy-network-mcp-server.sh"
+
+echo -e "${GREEN}Phase 3-B 완료: Network MCP Server 배포 성공${NC}"
+
 # 첫 배포 시 placeholder를 사용했으므로, 실제 ARN으로 K8sAgentStack 재배포
 if [ "$NEED_K8S_REDEPLOY" = true ]; then
     echo ""
@@ -151,6 +175,12 @@ cd "${ROOT_DIR}/agents/istio-agent/agent"
 $AGENTCORE_CMD deploy
 echo -e "${GREEN}Istio Agent Runtime 배포 완료${NC}"
 
+echo ""
+echo -e "${BLUE}[4-4] Network Agent Runtime 배포...${NC}"
+cd "${ROOT_DIR}/agents/network-agent/agent"
+$AGENTCORE_CMD deploy
+echo -e "${GREEN}Network Agent Runtime 배포 완료${NC}"
+
 echo -e "${GREEN}Phase 4 완료: Agent Runtime 배포 성공${NC}"
 
 # =============================================================================
@@ -165,6 +195,7 @@ echo "배포된 Agent:"
 echo "  - K8s Agent Runtime"
 echo "  - Incident Agent Runtime"
 echo "  - Istio Agent Runtime"
+echo "  - Network Agent Runtime"
 echo ""
 echo "Istio 인프라 (메시, AMP/ADOT, 샘플 워크로드)는"
 echo "EKS 클러스터 배포 시 자동 설정됩니다:"

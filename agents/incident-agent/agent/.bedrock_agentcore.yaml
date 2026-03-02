@@ -14,7 +14,7 @@ agents:
       execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-6d61d71378
       execution_role_auto_create: false
       account: '175678592674'
-      region: ap-northeast-2
+      region: us-east-1
       ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-incident_analysis_agent_runtime
       ecr_auto_create: false
       s3_path: null

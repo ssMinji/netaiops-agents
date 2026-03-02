@@ -11,8 +11,12 @@ agents:
     container_runtime: docker
     source_path: .
     aws:
-      execution_role_auto_create: true
-      ecr_auto_create: true
+      execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-59606a8f05
+      execution_role_auto_create: false
+      account: '175678592674'
+      region: us-east-1
+      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-istio_mesh_agent_runtime
+      ecr_auto_create: false
       s3_path: null
       s3_auto_create: false
       network_configuration:
@@ -25,13 +29,21 @@ agents:
       lifecycle_configuration:
         idle_runtime_session_timeout: null
         max_lifetime: null
+    bedrock_agentcore:
+      agent_id: istio_mesh_agent_runtime-r7YDg69Gvw
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:runtime/istio_mesh_agent_runtime-r7YDg69Gvw
+      agent_session_id: null
+    codebuild:
+      project_name: bedrock-agentcore-istio_mesh_agent_runtime-builder
+      execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-81ccd74e10
+      source_bucket: bedrock-agentcore-codebuild-sources-175678592674-us-east-1
     memory:
       mode: STM_ONLY
-      memory_id: null
-      memory_arn: null
-      memory_name: null
+      memory_id: istio_mesh_agent_runtime_mem-453pzwCpN7
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:memory/istio_mesh_agent_runtime_mem-453pzwCpN7
+      memory_name: istio_mesh_agent_runtime_mem
       event_expiry_days: 30
-      first_invoke_memory_check_done: false
+      first_invoke_memory_check_done: true
       was_created_by_toolkit: false
     identity:
       credential_providers: []

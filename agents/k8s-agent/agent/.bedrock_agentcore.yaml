@@ -14,7 +14,7 @@ agents:
       execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-59606a8f05
       execution_role_auto_create: false
       account: '175678592674'
-      region: ap-northeast-2
+      region: us-east-1
       ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-a2a_k8s_agent_runtime
       ecr_auto_create: false
       s3_path: null
@@ -32,7 +32,7 @@ agents:
     bedrock_agentcore:
       agent_id: a2a_k8s_agent_runtime-f2D7u5BpR1
       agent_arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:runtime/a2a_k8s_agent_runtime-f2D7u5BpR1
-      agent_session_id: 3d456cda-2426-44ca-9006-29722c37ba23
+      agent_session_id: null
     codebuild:
       project_name: bedrock-agentcore-a2a_k8s_agent_runtime-builder
       execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-59606a8f05

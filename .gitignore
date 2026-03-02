@@ -40,3 +40,6 @@ Thumbs.db
 # Environment
 .env
 .env.local
+
+# Screenshots
+Screenshot*.png
