@@ -96,6 +96,27 @@ MCP Gateway → GATEWAY_IAM_ROLE → Lambda Function
 
 - No OAuth2 auth; Gateway's IAM role invokes Lambda directly
 
+## Design Decisions
+
+### Why Dual Cognito Pools?
+
+A single pool could handle both inbound and outbound authentication, but dual pools provide:
+
+- **Scope isolation**: Inbound scopes (who can call the agent) are completely separate from outbound scopes (what the agent can access)
+- **Independent rotation**: Rotate M2M credentials without disrupting frontend auth
+- **Audit clarity**: CloudTrail logs clearly distinguish "user called agent" vs "agent called tool"
+- **Least privilege**: Backend tokens cannot accidentally access MCP Server resources
+
+**When you DON'T need dual pools**: If your agent only uses Lambda targets (like the Incident Agent in this project), there's no outbound OAuth2 flow — Lambda targets authenticate via IAM role. A single Agent Pool is sufficient.
+
+### Choosing Your Auth Pattern
+
+| Pattern | Use When | Example |
+|---------|----------|---------|
+| **Dual Pool** (Agent + Runtime) | Agent calls MCP Server targets requiring OAuth2 | K8s, Network, Istio agents |
+| **Single Pool** (Agent only) | Agent uses only Lambda targets or IAM-based auth | Incident agent |
+| **No Pool** (IAM only) | Internal-only agent, no external callers | Development/testing |
+
 ## Per-Agent Details
 
 ### K8s Agent

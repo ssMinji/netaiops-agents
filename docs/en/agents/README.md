@@ -71,3 +71,54 @@ All agents support multiple AI models, selectable per conversation:
 | Claude Haiku 4.5 | `global.anthropic.claude-haiku-4-5-v1` |
 | Qwen 3 32B | `qwen.qwen3-32b-v1:0` |
 | Amazon Nova Pro | `us.amazon.nova-pro-v1:0` |
+
+## Tool Integration Patterns
+
+### MCP Server vs Lambda Targets
+
+When designing your agent's tool architecture, choose between two target types:
+
+| Criteria | MCP Server Target | Lambda Target |
+|----------|-------------------|---------------|
+| **Best for** | Rich, stateful tool servers with many operations | Individual tools or small tool groups |
+| **Auth model** | OAuth2 (requires Runtime Pool + credential provider) | IAM Role (simpler, no extra Cognito pool) |
+| **State** | Persistent process, can maintain connections | Stateless, cold starts possible |
+| **Scaling** | AgentCore manages runtime scaling | AWS Lambda auto-scales |
+| **Existing ecosystem** | AWS Labs MCP Servers (EKS, Network, etc.) | Any Lambda function |
+| **Tool count** | Unlimited (server exposes all tools) | Schema defined per Gateway target |
+| **Deployment** | `agentcore deploy` (CodeBuild + container) | CDK/CloudFormation (Docker image) |
+
+**This project's choices**:
+- **K8s Agent**: MCP Server only — leverages the full `awslabs/eks-mcp-server` with dozens of K8s operations
+- **Incident Agent**: Lambda only — 6 focused Lambda functions, each bundling related tools
+- **Network/Istio Agents**: Hybrid — MCP Server for core capabilities + Lambda for custom tools
+
+### Lambda Tool Routing (`_tool` Pattern)
+
+MCP Gateway passes only the `arguments` object to Lambda targets — the tool name is NOT included. When bundling multiple tools in a single Lambda, you need a routing mechanism:
+
+```python
+# Lambda handler
+def handler(event, context):
+    tool_name = event.get("_tool")  # Model includes this in arguments
+    if tool_name == "dns-resolve":
+        return resolve_dns(event)
+    elif tool_name == "dns-check-health":
+        return check_health(event)
+```
+
+```json
+// Tool schema — include _tool as required parameter
+{
+  "name": "dns-resolve",
+  "inputSchema": {
+    "properties": {
+      "_tool": { "type": "string", "description": "Must be \"dns-resolve\"" },
+      "hostname": { "type": "string" }
+    },
+    "required": ["_tool", "hostname"]
+  }
+}
+```
+
+**Important**: `enum` fields are not supported in Gateway tool schemas (API validation error). Use `description` to document allowed values instead.

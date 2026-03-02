@@ -143,3 +143,24 @@ MCP Gateway → GATEWAY_IAM_ROLE → Lambda Function
 - Incident Agent: `/app/incident/agentcore`
 - Istio Agent: `/app/istio/agentcore`
 - Network Agent: `/app/network/agentcore`
+
+## 설계 결정
+
+### 왜 이중 Cognito Pool인가?
+
+단일 풀로도 인바운드/아웃바운드 인증을 모두 처리할 수 있지만, 이중 풀은 다음을 제공합니다:
+
+- **스코프 격리**: 인바운드 스코프(누가 에이전트를 호출할 수 있는가)와 아웃바운드 스코프(에이전트가 무엇에 접근할 수 있는가)가 완전히 분리
+- **독립적 로테이션**: 프론트엔드 인증에 영향 없이 M2M 자격 증명 로테이션 가능
+- **감사 명확성**: CloudTrail 로그에서 "사용자가 에이전트 호출"과 "에이전트가 도구 호출"을 명확히 구분
+- **최소 권한**: 백엔드 토큰이 실수로 MCP Server 리소스에 접근 불가
+
+**이중 풀이 불필요한 경우**: 에이전트가 Lambda 타겟만 사용하는 경우(이 프로젝트의 Incident Agent처럼), 아웃바운드 OAuth2 흐름이 없습니다. Lambda 타겟은 IAM 역할로 인증하므로 Agent Pool 하나면 충분합니다.
+
+### 인증 패턴 선택 가이드
+
+| 패턴 | 사용 시기 | 예시 |
+|---------|----------|---------|
+| **이중 풀** (Agent + Runtime) | 에이전트가 OAuth2가 필요한 MCP Server 타겟을 호출 | K8s, Network, Istio 에이전트 |
+| **단일 풀** (Agent만) | 에이전트가 Lambda 타겟이나 IAM 기반 인증만 사용 | Incident 에이전트 |
+| **풀 없음** (IAM만) | 내부 전용 에이전트, 외부 호출자 없음 | 개발/테스트 |

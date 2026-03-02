@@ -56,7 +56,7 @@ AgentStack (parent)
 
 ```typescript
 export const CONFIG = {
-  account: '175678592674',
+  account: '<ACCOUNT_ID>',
   primaryRegion: 'us-east-1',
 
   k8sAgent: {

@@ -115,7 +115,7 @@ The cached variant is deployed as a separate AgentCore runtime:
 
 ```bash
 cd agents/incident-agent/agent-cached
-AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
+AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=<AWS_PROFILE> agentcore deploy
 ```
 
 After deployment, follow the same post-deployment checklist (JWT authorizer restore, SSM ARN registration, execution role permissions) as the standard agent. The cached runtime gets its own ARN stored in SSM.

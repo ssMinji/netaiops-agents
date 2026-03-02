@@ -2,7 +2,7 @@
 
 ## 사전 요구사항
 
-- `netaiops-deploy` 프로필이 구성된 AWS CLI
+- 구성된 AWS CLI 프로필
 - Node.js 18+ (CDK용)
 - Python 3.12+ (에이전트용)
 - AgentCore CLI (PATH에 `agentcore` 존재)
@@ -18,6 +18,29 @@ Phase 2: EKS RBAC           →  ClusterRole/ClusterRoleBinding
 Phase 3: MCP Server 런타임  →  EKS MCP Server, Network MCP Server
 Phase 4: Agent 런타임       →  agentcore deploy × 4 에이전트
 ```
+
+## 일반적인 AgentCore 배포 패턴
+
+AgentCore 기반 에이전트 프로젝트는 에이전트 수에 관계없이 다음 배포 순서를 따릅니다:
+
+```
+1. 인프라 (CDK/CloudFormation)  →  인증, IAM, 도구, 구성
+2. 클러스터 접근 (필요 시)       →  Kubernetes 기반 도구를 위한 RBAC
+3. MCP Server 런타임 (필요 시)   →  장기 실행 도구 서버
+4. Agent 런타임                  →  에이전트별 agentcore deploy
+```
+
+**핵심 포인트**: CDK/CloudFormation은 AgentCore 전용 리소스(Gateway, Runtime, Credential Provider)를 관리할 수 없습니다. 이러한 리소스는 AgentCore CLI 또는 boto3 API가 필요합니다. 배포 파이프라인 설계 시 IaC와 CLI 단계를 모두 고려하세요.
+
+### 플레이스홀더 ARN 문제
+
+MCP Server 런타임이 CDK 스택보다 먼저 존재해야 하지만(예: Gateway 타겟으로), CDK 스택이 먼저 배포되어야 MCP Server에 필요한 인증 리소스가 생성되는 순환 종속성이 발생합니다:
+
+1. CDK가 MCP Server ARN용 플레이스홀더 SSM 파라미터 생성
+2. MCP Server 배포 후 실제 ARN을 SSM에 저장
+3. CDK 스택을 재배포하여 플레이스홀더를 실제 ARN으로 교체
+
+이 순환 종속성은 CDK가 관리하는 Gateway가 CLI로 관리되는 MCP Server를 참조하는 모든 프로젝트에서 발생합니다.
 
 ## 에이전트 종속성
 
@@ -92,9 +115,9 @@ Phase 4 (Agent deploy)
 │  Each agent reads gateway_url from SSM to connect to MCP Gateway
 ```
 
-## 에이전트 구성 (.bedrock_agentcore.yaml)
+## 에이전트 구성 패턴 (.bedrock_agentcore.yaml)
 
-주요 필드:
+자체 에이전트를 구축할 때 Cognito 풀과 IAM 구성에 맞게 다음 필드를 조정하세요:
 
 ```yaml
 default_agent: <agent_name>
@@ -102,10 +125,10 @@ agents:
   <agent_name>:
     platform: linux/arm64
     aws:
-      account: '175678592674'
+      account: '<ACCOUNT_ID>'
       region: us-east-1
-      execution_role: arn:aws:iam::175678592674:role/...
-      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/...
+      execution_role: arn:aws:iam::<ACCOUNT_ID>:role/...
+      ecr_repository: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/...
     authorizer_configuration:
       customJWTAuthorizer:
         discoveryUrl: https://cognito-idp.us-east-1.amazonaws.com/...
@@ -121,7 +144,7 @@ agents:
 ### SSM 파라미터 (Incident Agent용)
 
 ```bash
-PROFILE="netaiops-deploy"
+PROFILE="<AWS_PROFILE>"
 REGION="us-east-1"
 
 # Datadog (선택사항)
@@ -172,7 +195,7 @@ cd agents/<name>/agent && agentcore status
 ```bash
 aws lambda list-functions \
   --query "Functions[?starts_with(FunctionName,'incident-')].[FunctionName,State]" \
-  --output table --profile netaiops-deploy --region us-east-1
+  --output table --profile <AWS_PROFILE> --region us-east-1
 ```
 
 ### Lambda 직접 테스트
@@ -180,6 +203,6 @@ aws lambda list-functions \
 ```bash
 aws lambda invoke --function-name incident-container-insight-tools \
   --payload '{"name":"container-insight-cluster-overview","arguments":{"cluster_name":"netaiops-eks-cluster"}}' \
-  /tmp/out.json --profile netaiops-deploy --region us-east-1
+  /tmp/out.json --profile <AWS_PROFILE> --region us-east-1
 cat /tmp/out.json | python3 -m json.tool
 ```

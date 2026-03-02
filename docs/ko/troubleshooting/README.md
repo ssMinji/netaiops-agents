@@ -1,14 +1,18 @@
 # 트러블슈팅
 
-## 에이전트 배포 후 일반적인 문제
+이 문제들은 이 프로젝트에만 해당하는 것이 아니라 AWS Bedrock AgentCore 배포에서 공통적으로 발생합니다. 근본 원인을 이해하면 자체 에이전트 아키텍처에서 이를 예방할 수 있습니다.
+
+## 인증 및 ID 문제
 
 ### 403 Authorization Method Mismatch
 
-**증상**: UI에서 호출 시 에이전트가 403을 반환합니다.
+**발생 원인**: `agentcore deploy`는 배포할 때마다 `authorizer_configuration`을 null로 초기화합니다. 이는 AgentCore CLI의 알려진 동작으로, 각 배포를 새로운 구성으로 취급합니다.
 
-**원인**: `agentcore deploy`가 `authorizer_configuration`을 null로 재설정합니다.
+**패턴**: JWT 기반 인증(Cognito, 커스텀 OIDC)을 사용하는 모든 에이전트는 재배포 후 authorizer를 잃게 됩니다.
 
-**해결**: API를 통해 JWT authorizer 구성을 복원:
+**예방**: CI/CD 파이프라인에서 배포 후 단계로 authorizer 복원을 자동화하세요.
+
+**해결**:
 
 ```python
 client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
@@ -28,34 +32,15 @@ client.update_agent_runtime(
 )
 ```
 
-### 424 Runtime Start Failure — SSM AccessDeniedException
+### 424 Credential Provider Not Found
 
-**증상**: SSM `GetParameter` 권한 오류로 에이전트 시작 실패.
+**발생 원인**: 에이전트 코드가 SSM에 저장된 credential provider 이름을 참조하지만, 해당 provider가 AgentCore의 token vault에 존재하지 않습니다. 에이전트 런타임이 다른 계정/리전에 재배포되거나 credential provider가 생성되지 않은 경우 발생합니다.
 
-**원인**: 자동 생성된 실행 역할에 SSM 권한이 없습니다.
+**패턴**: OAuth2를 사용하여 MCP Gateway를 호출하는 모든 에이전트에는 AgentCore에 등록된 credential provider가 필요합니다.
 
-**해결**: SSM 인라인 정책 추가:
+**예방**: 배포 스크립트에 `agentcore identity create-credential-provider`를 포함하고, 에이전트 시작 전 `list-credential-providers`로 확인하세요.
 
-```bash
-aws iam put-role-policy --role-name <ROLE_NAME> \
-  --policy-name SSMGetParameterAccess \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
-      "Resource": "arn:aws:ssm:us-east-1:175678592674:parameter/app/<agent>/*"
-    }]
-  }'
-```
-
-### 424 Runtime Start Failure — Credential Provider Not Found
-
-**증상**: MCP Gateway용 OAuth2 토큰 획득 실패.
-
-**원인**: 에이전트 구성에서 참조하는 credential provider가 token vault에 존재하지 않습니다.
-
-**해결**: credential provider 생성:
+**해결**:
 
 ```bash
 agentcore identity create-credential-provider \
@@ -65,13 +50,40 @@ agentcore identity create-credential-provider \
   --cognito-pool-id <POOL_ID>
 ```
 
+## IAM 권한 문제
+
+### 424 Runtime Start Failure — SSM AccessDeniedException
+
+**발생 원인**: `agentcore deploy`는 최소 권한으로 실행 역할(`AmazonBedrockAgentCoreSDKRuntime-*`)을 자동 생성합니다. 에이전트가 시작 시 SSM에서 구성을 읽으면 이 역할에 `ssm:GetParameter` 권한이 없어 실패합니다.
+
+**패턴**: SSM에서 런타임 구성(gateway URL, 자격 증명, 기능 플래그)을 읽는 모든 에이전트는 실행 역할이 사전 구성되거나 배포 후 패치되지 않으면 첫 배포에서 실패합니다.
+
+**예방**: (a) CDK로 SSM 권한이 포함된 실행 역할을 미리 생성하고 `.bedrock_agentcore.yaml`에서 참조하거나, (b) 배포 후 단계로 SSM 권한을 추가하세요.
+
+**해결**:
+
+```bash
+aws iam put-role-policy --role-name <ROLE_NAME> \
+  --policy-name SSMGetParameterAccess \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Effect": "Allow",
+      "Action": ["ssm:GetParameter", "ssm:GetParameters", "ssm:GetParametersByPath"],
+      "Resource": "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/app/<agent>/*"
+    }]
+  }'
+```
+
 ### 503 Agent ARN Not Found
 
-**증상**: "Agent ARN not found" 메시지와 함께 백엔드가 503 반환.
+**발생 원인**: 웹 백엔드가 호출 시 SSM에서 에이전트 ARN을 조회합니다. SSM 파라미터 키가 백엔드가 기대하는 것과 일치하지 않으면(예: `runtime_arn` vs `agent_runtime_arn`) 조회가 실패합니다.
 
-**원인**: SSM 파라미터 이름 불일치. 백엔드는 `agent_runtime_arn`을 예상하지만 파라미터가 다른 키로 저장되었을 수 있습니다.
+**패턴**: 인프라가 SSM에 ARN을 쓰고 애플리케이션 코드가 읽는 모든 시스템은 키 이름 불일치에 취약합니다. 특히 CDK와 CLI가 다른 명명 규칙을 사용할 때 그렇습니다.
 
-**해결**: 올바른 SSM 파라미터 확인 및 생성:
+**예방**: CDK 코드와 애플리케이션 코드 간에 SSM 키 이름을 상수로 공유하세요. 배포 후 모든 SSM 파라미터가 존재하는지 검증하세요.
+
+**해결**:
 
 ```bash
 aws ssm put-parameter \
@@ -79,13 +91,17 @@ aws ssm put-parameter \
   --value "<AGENT_ARN>" --type String --overwrite
 ```
 
+## 빌드 및 컨테이너 문제
+
 ### CodeBuild에서 Docker Hub 속도 제한 (429)
 
-**증상**: `BUILD` 단계에서 Docker pull 오류로 CodeBuild 실패.
+**발생 원인**: `agentcore deploy`는 CodeBuild를 사용하여 컨테이너 이미지를 빌드합니다. 익명 Docker Hub pull은 속도 제한이 있습니다(IP당 6시간에 100회). CodeBuild 인스턴스는 IP를 공유하므로 제한에 자주 도달합니다.
 
-**원인**: 익명 Docker Hub pull은 속도 제한이 있습니다(IP당 6시간에 100회 pull).
+**패턴**: `FROM python:*` 또는 기타 Docker Hub 이미지를 사용하는 모든 Dockerfile은 CodeBuild에서 결국 실패합니다.
 
-**해결**: Dockerfile에서 ECR Public Gallery 미러 사용:
+**예방**: 처음부터 Dockerfile에서 ECR Public Gallery 미러를 사용하세요.
+
+**해결**:
 
 ```dockerfile
 # 이전 (속도 제한)
@@ -97,13 +113,13 @@ FROM public.ecr.aws/docker/library/python:3.12-slim
 
 ### CodeBuild에서 심링크가 해석되지 않음
 
-**증상**: 배포된 에이전트 컨테이너에서 `ModuleNotFoundError` 발생.
+**발생 원인**: `agentcore deploy`는 CodeBuild를 위해 소스 디렉토리를 zip으로 압축합니다. 빌드 컨텍스트 외부를 가리키는 심링크는 zip에 포함되지 않아 컨테이너에서 깨진 참조가 됩니다.
 
-**원인**: `agentcore deploy`는 소스 디렉토리를 zip으로 압축하는 CodeBuild를 사용합니다. 빌드 컨텍스트 외부를 가리키는 심링크는 해석되지 않습니다.
+**패턴**: 에이전트 간 코드 공유를 위해 심링크를 사용하는 모든 프로젝트 구조는 `agentcore deploy` 시 깨집니다.
 
-**해결**: 배포 시 심링크 대신 파일 복사를 사용합니다. 심링크 대신 실제 파일이 있는 `agent-cached/` 디렉토리를 생성합니다.
+**예방**: 배포 디렉토리에는 심링크 대신 파일 복사를 사용하세요. 에이전트 간 코드를 공유하는 경우 빌드 단계에서 공유 모듈을 각 에이전트의 배포 디렉토리에 복사하세요.
 
-## 디버깅 팁
+## 디버깅
 
 ### 에이전트 로그 확인
 

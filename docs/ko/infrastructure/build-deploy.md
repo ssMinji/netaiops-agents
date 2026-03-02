@@ -1,5 +1,7 @@
 # 빌드 및 배포
 
+이 페이지는 프로젝트의 구체적인 빌드 명령어와 배포 단계를 다룹니다. 자체 배포 파이프라인을 구성할 때 참고하세요.
+
 ## CDK 빌드
 
 ```bash
@@ -15,10 +17,10 @@ npx tsc --noEmit
 npx cdk synth
 
 # 전체 스택 배포
-npx cdk deploy --all --profile netaiops-deploy
+npx cdk deploy --all --profile <AWS_PROFILE>
 
 # 특정 스택 배포
-npx cdk deploy IncidentAgentStack --profile netaiops-deploy
+npx cdk deploy IncidentAgentStack --profile <AWS_PROFILE>
 ```
 
 ## 스택 배포 순서
@@ -47,7 +49,7 @@ CDK 스택은 `bin/netaiops-infra.ts`에 정의되며 다음 순서로 배포됩
 
 스크립트는 시작 전에 다음 도구를 검증합니다:
 
-- `aws` CLI (`netaiops-deploy` 프로필 포함)
+- `aws` CLI (구성된 프로필 포함)
 - `npx` (Node.js)
 - `docker` (데몬 실행 중)
 - `kubectl`
@@ -59,7 +61,7 @@ CDK 스택은 `bin/netaiops-infra.ts`에 정의되며 다음 순서로 배포됩
 cd infra-cdk
 npm install --silent
 npm run build
-npx cdk deploy --all --profile netaiops-deploy --require-approval never
+npx cdk deploy --all --profile <AWS_PROFILE> --require-approval never
 ```
 
 배포 대상:
@@ -96,7 +98,7 @@ bash agents/network-agent/prerequisite/deploy-network-mcp-server.sh
 ```bash
 for agent in k8s-agent incident-agent istio-agent network-agent; do
   cd agents/$agent/agent
-  AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
+  AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=<AWS_PROFILE> agentcore deploy
   cd -
 done
 ```
@@ -105,7 +107,7 @@ done
 
 ## 배포 후 체크리스트
 
-`agentcore deploy` 후, 각 에이전트에 대해 여러 수동 단계가 필요합니다:
+`agentcore deploy` 후 모든 AgentCore 에이전트에 대해 다음 단계가 필요합니다. 이 프로젝트에만 해당하는 것이 아니라 Cognito JWT 인증과 SSM 기반 구성을 사용하는 모든 에이전트에 적용됩니다:
 
 ### 1. JWT Authorizer 복원
 
@@ -137,7 +139,7 @@ client.update_agent_runtime(
 aws ssm put-parameter \
   --name "/app/<agent>/agentcore/agent_runtime_arn" \
   --value "<AGENT_ARN>" --type String --overwrite \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 ```
 
 ### 3. 실행 역할에 SSM 권한 추가
@@ -152,7 +154,7 @@ aws iam put-role-policy --role-name <ROLE_NAME> \
     "Statement": [{
       "Effect": "Allow",
       "Action": ["ssm:GetParameter", "ssm:GetParameters"],
-      "Resource": "arn:aws:ssm:us-east-1:175678592674:parameter/app/<agent>/*"
+      "Resource": "arn:aws:ssm:us-east-1:<ACCOUNT_ID>:parameter/app/<agent>/*"
     }]
   }'
 ```
@@ -178,7 +180,7 @@ cp -r dist/* ../backend/static/
 
 # 3. EC2로 전송 (S3 + SSM 사용)
 tar czf /tmp/app.tar.gz -C app .
-aws s3 cp /tmp/app.tar.gz s3://netaiops-deploy-175678592674-us-east-1/app.tar.gz
+aws s3 cp /tmp/app.tar.gz s3://<DEPLOY_BUCKET>/app.tar.gz
 
 # 4. 타겟 인스턴스에서 Docker 리빌드
 docker build --no-cache -t netaiops-hub /home/ec2-user/app
@@ -188,8 +190,8 @@ docker run -d -p 8000:8000 --restart unless-stopped netaiops-hub
 
 # 5. CloudFront 무효화
 aws cloudfront create-invalidation \
-  --distribution-id EO3603OVKIG2I --paths '/*' \
-  --profile netaiops-deploy
+  --distribution-id <DISTRIBUTION_ID> --paths '/*' \
+  --profile <AWS_PROFILE>
 ```
 
 ## Lambda Docker 이미지 업데이트
@@ -207,7 +209,7 @@ aws lambda update-function-code --function-name <NAME> --image-uri <ECR_REPO>:<T
 ```bash
 # CDK 스택
 cd infra-cdk
-npx cdk destroy --all --profile netaiops-deploy
+npx cdk destroy --all --profile <AWS_PROFILE>
 
 # AgentCore 런타임
 for agent in k8s-agent incident-agent istio-agent network-agent; do

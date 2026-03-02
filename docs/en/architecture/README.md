@@ -96,6 +96,28 @@ K8s Agent Stack (deploy first)              Istio Agent Stack (deploy after)
 └──────────────────────────────┘           └──────────────────────────────┘
 ```
 
+## Design Decisions
+
+### Why Per-Agent Stacks?
+
+Each agent is deployed as an independent CDK stack rather than a monolithic shared stack. This enables:
+
+- **Independent lifecycle**: Deploy, update, or rollback one agent without affecting others
+- **Isolated failure domain**: A misconfigured stack doesn't break other agents
+- **Team ownership**: Different teams can own different agent stacks
+- **Incremental adoption**: Add new agents without modifying existing infrastructure
+
+**Trade-off**: Cross-agent resource sharing (e.g., Istio Agent reusing K8s Agent's MCP Server) requires SSM parameter-based coordination instead of direct CDK references.
+
+### When to Share vs Isolate Resources
+
+| Resource | Share | Isolate | This Project |
+|----------|-------|---------|-------------|
+| MCP Server Runtime | Multiple agents use same tools | Agent needs custom tool config | EKS MCP Server shared by K8s + Istio |
+| Cognito Pool | Agents in same trust boundary | Different auth requirements | Isolated per agent |
+| Lambda Functions | Tools reused across agents | Agent-specific tool logic | Isolated per agent |
+| IAM Roles | Same permission requirements | Least privilege per agent | Isolated per agent |
+
 ## SSM Parameter Structure
 
 Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at creation time. Agent Python code reads from SSM at runtime to connect to MCP Gateway.
@@ -150,6 +172,29 @@ Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at 
  │ (CLI)           │                 │              │                │              │
  └─────────────────┘                 └──────────────┘                └──────────────┘
 ```
+
+## Scaling and Concurrency
+
+### AgentCore Runtime Scaling
+
+AgentCore manages container scaling automatically. Key considerations when designing your agent:
+
+- **Stateless containers**: Each invocation may hit a different container instance. Do not rely on in-memory state between requests — use SSM, DynamoDB, or AgentCore Memory for persistence.
+- **Cold starts**: First invocation after deployment or scale-up has container initialization overhead. Keep container images lean to minimize this.
+- **Concurrent invocations**: Multiple users can invoke the same agent simultaneously. Ensure your agent code is safe for concurrent execution (no shared mutable globals).
+
+### MCP Server Concurrency
+
+- **MCP Server runtimes** are also auto-scaled by AgentCore. If your MCP Server connects to external systems (databases, Kubernetes API), ensure connection pooling or rate limiting is in place.
+- **Lambda targets** inherit AWS Lambda's concurrency model. Set reserved concurrency if your Lambda calls rate-limited external APIs.
+
+### Token Caching
+
+When multiple agents or users share a Cognito pool, OAuth2 token requests can become a bottleneck. This project caches tokens in-memory with a TTL shorter than the token's actual expiry (3500s for 3600s tokens). For multi-container setups, consider a shared cache (ElastiCache, DynamoDB) if token endpoint rate limits become an issue.
+
+### Gateway Throughput
+
+MCP Gateway is a managed service with its own limits. If your agent makes many parallel tool calls, be aware that each tool call is a separate Gateway request. Strands SDK executes parallel tool calls concurrently, which can amplify Gateway request volume.
 
 ## Related Pages
 

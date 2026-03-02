@@ -31,6 +31,8 @@ User conversation
 
 ## Current Configuration
 
+> **Note:** The values below are from the reference implementation. Replace with your own resource identifiers.
+
 | Agent | Memory ID | Strategy | Namespace |
 |-------|-----------|----------|-----------|
 | Network | `network_diagnostics_agent_runtime_mem-OSaOFx43jt` | Semantic (`network_context`) | `network/{actorId}` |
@@ -39,7 +41,7 @@ User conversation
 | Incident | `incident_agent_memory-CThNONA84a` | Semantic (`incident_context`) | `incident/{actorId}/context` |
 | Incident (Cached) | *(shares Incident memory)* | | |
 
-Common execution role: `arn:aws:iam::175678592674:role/NetAIOps-MemoryExecutionRole`
+Common execution role: `arn:aws:iam::<ACCOUNT_ID>:role/NetAIOps-MemoryExecutionRole`
 
 ## Three Requirements for Working Memory
 
@@ -50,12 +52,12 @@ Agent code reads `memory_id` from SSM at runtime. The YAML file's `memory_id` is
 ```bash
 # Check
 aws ssm get-parameter --name "/app/<agent>/agentcore/memory_id" \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 
 # Register (if missing)
 aws ssm put-parameter --name "/app/<agent>/agentcore/memory_id" \
   --value "<memory-id>" --type String \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 ```
 
 SSM parameter paths:
@@ -75,14 +77,14 @@ Strategy for extracting events into memory records. Without it, events are store
 # Check current strategy
 aws bedrock-agentcore-control get-memory \
   --memory-id "<memory-id>" \
-  --profile netaiops-deploy --region us-east-1 \
+  --profile <AWS_PROFILE> --region us-east-1 \
   --query 'memory.strategies'
 
 # Add strategy (when strategies is empty)
 aws bedrock-agentcore-control update-memory \
   --memory-id "<memory-id>" \
   --memory-strategies file:///tmp/strategy.json \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 ```
 
 `/tmp/strategy.json` example:
@@ -118,7 +120,7 @@ aws bedrock-agentcore-control get-memory \
 # Attach role
 aws bedrock-agentcore-control update-memory \
   --memory-id "<memory-id>" \
-  --memory-execution-role-arn "arn:aws:iam::175678592674:role/NetAIOps-MemoryExecutionRole"
+  --memory-execution-role-arn "arn:aws:iam::<ACCOUNT_ID>:role/NetAIOps-MemoryExecutionRole"
 ```
 
 Role requirements:
@@ -211,6 +213,18 @@ class MemoryHook:
 | Retrieval hook | `MessageAddedEvent` | `MessageAddedEvent` |
 | Save hook | `AfterInvocationEvent` | `MessageAddedEvent` |
 
+### Choosing a Memory Pattern for Your Agent
+
+| Requirement | Recommended Pattern | Rationale |
+|-------------|-------------------|-----------|
+| Cross-session context recall only | **Pattern A** (Dynamic namespace) | Simpler setup, automatic namespace discovery |
+| In-session conversation continuity | **Pattern B** (STM injection) | `get_last_k_turns()` provides immediate context without waiting for async extraction |
+| Multiple context types (e.g., diagnostics + history) | **Pattern B** (Dual namespace) | Separate namespaces enable targeted retrieval |
+| Pre-populated domain knowledge | **Pattern A** (Seed memory) | `create_event()` at init populates baseline context |
+| Minimal implementation effort | **Pattern A** | Single class, fewer hook events to implement |
+
+**Key consideration**: Semantic memory extraction is asynchronous. If your agent needs context from the *current* session (not just previous sessions), you must implement STM (Pattern B) — semantic retrieval alone will miss recently saved events that haven't been extracted yet.
+
 ## Adding Memory to a New Agent
 
 1. Create memory in AgentCore
@@ -218,7 +232,7 @@ class MemoryHook:
    aws bedrock-agentcore-control create-memory \
      --name "<agent>_memory" \
      --event-expiry-duration 30 \
-     --memory-execution-role-arn "arn:aws:iam::175678592674:role/NetAIOps-MemoryExecutionRole" \
+     --memory-execution-role-arn "arn:aws:iam::<ACCOUNT_ID>:role/NetAIOps-MemoryExecutionRole" \
      --memory-strategies '[{"semanticMemoryStrategy":{"name":"<agent>_context","description":"...","namespaces":["<prefix>/{actorId}"]}}]'
    ```
 

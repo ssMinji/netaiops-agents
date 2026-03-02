@@ -115,7 +115,7 @@ self.model = BedrockModel(model_id=self.model_id, **cache_kwargs)
 
 ```bash
 cd agents/incident-agent/agent-cached
-AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
+AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=<AWS_PROFILE> agentcore deploy
 ```
 
 배포 후 표준 에이전트와 동일한 배포 후 체크리스트(JWT authorizer 복원, SSM ARN 등록, 실행 역할 권한)를 따릅니다. 캐시 런타임은 자체 ARN을 SSM에 저장합니다.

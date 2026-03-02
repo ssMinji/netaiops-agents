@@ -1,5 +1,7 @@
 # Build & Deploy
 
+This page covers the concrete build commands and deployment phases for this project. Use it as a reference for structuring your own deployment pipeline.
+
 ## CDK Build
 
 ```bash
@@ -15,10 +17,10 @@ npx tsc --noEmit
 npx cdk synth
 
 # Deploy all stacks
-npx cdk deploy --all --profile netaiops-deploy
+npx cdk deploy --all --profile <AWS_PROFILE>
 
 # Deploy specific stack
-npx cdk deploy IncidentAgentStack --profile netaiops-deploy
+npx cdk deploy IncidentAgentStack --profile <AWS_PROFILE>
 ```
 
 ## Stack Deployment Order
@@ -47,7 +49,7 @@ The `deploy.sh` script orchestrates all 4 deployment phases sequentially.
 
 The script validates the following tools before starting:
 
-- `aws` CLI (with `netaiops-deploy` profile)
+- `aws` CLI (with `<AWS_PROFILE>` profile)
 - `npx` (Node.js)
 - `docker` (daemon running)
 - `kubectl`
@@ -59,7 +61,7 @@ The script validates the following tools before starting:
 cd infra-cdk
 npm install --silent
 npm run build
-npx cdk deploy --all --profile netaiops-deploy --require-approval never
+npx cdk deploy --all --profile <AWS_PROFILE> --require-approval never
 ```
 
 Deploys:
@@ -96,7 +98,7 @@ After deployment, the scripts store the actual runtime ARNs in SSM. If Phase 1 u
 ```bash
 for agent in k8s-agent incident-agent istio-agent network-agent; do
   cd agents/$agent/agent
-  AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
+  AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=<AWS_PROFILE> agentcore deploy
   cd -
 done
 ```
@@ -105,7 +107,7 @@ Each agent is deployed as an ARM64 container on Bedrock AgentCore via CodeBuild.
 
 ## Post-Deployment Checklist
 
-After `agentcore deploy`, several manual steps are required for each agent:
+After `agentcore deploy`, the following steps are required for any AgentCore agent. These are not specific to this project — they apply to any agent using Cognito JWT auth and SSM-based configuration:
 
 ### 1. Restore JWT Authorizer
 
@@ -137,7 +139,7 @@ client.update_agent_runtime(
 aws ssm put-parameter \
   --name "/app/<agent>/agentcore/agent_runtime_arn" \
   --value "<AGENT_ARN>" --type String --overwrite \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 ```
 
 ### 3. Add SSM Permissions to Execution Role
@@ -152,7 +154,7 @@ aws iam put-role-policy --role-name <ROLE_NAME> \
     "Statement": [{
       "Effect": "Allow",
       "Action": ["ssm:GetParameter", "ssm:GetParameters"],
-      "Resource": "arn:aws:ssm:us-east-1:175678592674:parameter/app/<agent>/*"
+      "Resource": "arn:aws:ssm:us-east-1:<ACCOUNT_ID>:parameter/app/<agent>/*"
     }]
   }'
 ```
@@ -178,7 +180,7 @@ cp -r dist/* ../backend/static/
 
 # 3. Transfer to EC2 (via S3 + SSM)
 tar czf /tmp/app.tar.gz -C app .
-aws s3 cp /tmp/app.tar.gz s3://netaiops-deploy-175678592674-us-east-1/app.tar.gz
+aws s3 cp /tmp/app.tar.gz s3://<DEPLOY_BUCKET>/app.tar.gz
 
 # 4. Rebuild Docker on target instance
 docker build --no-cache -t netaiops-hub /home/ec2-user/app
@@ -188,8 +190,8 @@ docker run -d -p 8000:8000 --restart unless-stopped netaiops-hub
 
 # 5. Invalidate CloudFront
 aws cloudfront create-invalidation \
-  --distribution-id EO3603OVKIG2I --paths '/*' \
-  --profile netaiops-deploy
+  --distribution-id <DISTRIBUTION_ID> --paths '/*' \
+  --profile <AWS_PROFILE>
 ```
 
 ## Lambda Docker Image Update
@@ -207,7 +209,7 @@ aws lambda update-function-code --function-name <NAME> --image-uri <ECR_REPO>:<T
 ```bash
 # CDK stacks
 cd infra-cdk
-npx cdk destroy --all --profile netaiops-deploy
+npx cdk destroy --all --profile <AWS_PROFILE>
 
 # AgentCore Runtimes
 for agent in k8s-agent incident-agent istio-agent network-agent; do

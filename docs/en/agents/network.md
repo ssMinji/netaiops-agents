@@ -78,5 +78,5 @@ DNS and Network Metrics Lambda functions are deployed via CDK as Docker-based La
 
 ```bash
 cd infra-cdk
-npx cdk deploy NetworkAgentLambdaStack --profile netaiops-deploy
+npx cdk deploy NetworkAgentLambdaStack --profile <AWS_PROFILE>
 ```

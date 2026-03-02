@@ -31,6 +31,8 @@ User conversation
 
 ## 현재 구성
 
+> **참고:** 아래 값들은 레퍼런스 구현의 예시입니다. 실제 환경에서는 본인의 리소스 식별자로 교체하세요.
+
 | 에이전트 | Memory ID | 전략 | 네임스페이스 |
 |-------|-----------|----------|-----------|
 | Network | `network_diagnostics_agent_runtime_mem-OSaOFx43jt` | Semantic (`network_context`) | `network/{actorId}` |
@@ -39,7 +41,7 @@ User conversation
 | Incident | `incident_agent_memory-CThNONA84a` | Semantic (`incident_context`) | `incident/{actorId}/context` |
 | Incident (Cached) | *(Incident 메모리 공유)* | | |
 
-공통 실행 역할: `arn:aws:iam::175678592674:role/NetAIOps-MemoryExecutionRole`
+공통 실행 역할: `arn:aws:iam::<ACCOUNT_ID>:role/NetAIOps-MemoryExecutionRole`
 
 ## 동작하는 메모리를 위한 세 가지 요구사항
 
@@ -50,12 +52,12 @@ User conversation
 ```bash
 # 확인
 aws ssm get-parameter --name "/app/<agent>/agentcore/memory_id" \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 
 # 등록 (누락된 경우)
 aws ssm put-parameter --name "/app/<agent>/agentcore/memory_id" \
   --value "<memory-id>" --type String \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 ```
 
 SSM 파라미터 경로:
@@ -75,14 +77,14 @@ SSM 파라미터 경로:
 # 현재 전략 확인
 aws bedrock-agentcore-control get-memory \
   --memory-id "<memory-id>" \
-  --profile netaiops-deploy --region us-east-1 \
+  --profile <AWS_PROFILE> --region us-east-1 \
   --query 'memory.strategies'
 
 # 전략 추가 (strategies가 비어있을 때)
 aws bedrock-agentcore-control update-memory \
   --memory-id "<memory-id>" \
   --memory-strategies file:///tmp/strategy.json \
-  --profile netaiops-deploy --region us-east-1
+  --profile <AWS_PROFILE> --region us-east-1
 ```
 
 `/tmp/strategy.json` 예시:
@@ -118,7 +120,7 @@ aws bedrock-agentcore-control get-memory \
 # 역할 연결
 aws bedrock-agentcore-control update-memory \
   --memory-id "<memory-id>" \
-  --memory-execution-role-arn "arn:aws:iam::175678592674:role/NetAIOps-MemoryExecutionRole"
+  --memory-execution-role-arn "arn:aws:iam::<ACCOUNT_ID>:role/NetAIOps-MemoryExecutionRole"
 ```
 
 역할 요구사항:
@@ -211,6 +213,18 @@ class MemoryHook:
 | 검색 Hook | `MessageAddedEvent` | `MessageAddedEvent` |
 | 저장 Hook | `AfterInvocationEvent` | `MessageAddedEvent` |
 
+### 에이전트에 적합한 메모리 패턴 선택
+
+| 요구사항 | 권장 패턴 | 근거 |
+|-------------|-------------------|-----------|
+| 세션 간 컨텍스트 회상만 필요 | **패턴 A** (동적 네임스페이스) | 더 간단한 설정, 자동 네임스페이스 탐색 |
+| 세션 내 대화 연속성 필요 | **패턴 B** (STM 주입) | `get_last_k_turns()`가 비동기 추출 대기 없이 즉각적인 컨텍스트 제공 |
+| 여러 컨텍스트 유형 (예: 진단 + 이력) | **패턴 B** (이중 네임스페이스) | 별도 네임스페이스로 대상 지정 검색 가능 |
+| 사전 채워진 도메인 지식 | **패턴 A** (시드 메모리) | 초기화 시 `create_event()`로 기본 컨텍스트 채움 |
+| 최소한의 구현 노력 | **패턴 A** | 단일 클래스, 구현할 Hook 이벤트가 적음 |
+
+**핵심 고려사항**: 시맨틱 메모리 추출은 비동기적입니다. 에이전트가 *현재* 세션의 컨텍스트가 필요한 경우(이전 세션뿐만 아니라), STM(패턴 B)을 구현해야 합니다. 시맨틱 검색만으로는 아직 추출되지 않은 최근 저장된 이벤트를 놓치게 됩니다.
+
 ## 새 에이전트에 메모리 추가하기
 
 1. AgentCore에서 메모리 생성
@@ -218,7 +232,7 @@ class MemoryHook:
    aws bedrock-agentcore-control create-memory \
      --name "<agent>_memory" \
      --event-expiry-duration 30 \
-     --memory-execution-role-arn "arn:aws:iam::175678592674:role/NetAIOps-MemoryExecutionRole" \
+     --memory-execution-role-arn "arn:aws:iam::<ACCOUNT_ID>:role/NetAIOps-MemoryExecutionRole" \
      --memory-strategies '[{"semanticMemoryStrategy":{"name":"<agent>_context","description":"...","namespaces":["<prefix>/{actorId}"]}}]'
    ```
 

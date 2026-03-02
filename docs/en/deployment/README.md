@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- AWS CLI configured with `netaiops-deploy` profile
+- AWS CLI configured with `<AWS_PROFILE>` profile
 - Node.js 18+ (for CDK)
 - Python 3.12+ (for agents)
 - AgentCore CLI (`agentcore` in PATH)
@@ -18,6 +18,29 @@ Phase 2: EKS RBAC            →  ClusterRole/ClusterRoleBinding
 Phase 3: MCP Server Runtimes →  EKS MCP Server, Network MCP Server
 Phase 4: Agent Runtimes      →  agentcore deploy × 4 agents
 ```
+
+## Generic AgentCore Deployment Pattern
+
+Any AgentCore-based agent project follows this deployment sequence regardless of the number of agents:
+
+```
+1. Infrastructure (CDK/CloudFormation)  →  Auth, IAM, Tools, Configuration
+2. Cluster Access (if needed)           →  RBAC for Kubernetes-based tools
+3. MCP Server Runtimes (if needed)      →  Long-running tool servers
+4. Agent Runtimes                       →  agentcore deploy per agent
+```
+
+**Key insight**: CDK/CloudFormation cannot manage AgentCore-specific resources (Gateway, Runtime, Credential Provider). These require the AgentCore CLI or boto3 API. Plan your deployment pipeline to handle both IaC and CLI steps.
+
+### Placeholder ARN Problem
+
+When an MCP Server runtime must exist before the CDK stack can reference it (e.g., as a Gateway target), but the CDK stack must exist first to create auth resources the MCP Server needs:
+
+1. CDK creates a placeholder SSM parameter for the MCP Server ARN
+2. MCP Server is deployed, actual ARN stored in SSM
+3. CDK stack is redeployed to replace the placeholder with the real ARN
+
+This circular dependency is inherent to any project where CDK-managed Gateways reference CLI-managed MCP Servers.
 
 ## Agent Dependencies
 
@@ -92,9 +115,9 @@ Phase 4 (Agent deploy)
 │  Each agent reads gateway_url from SSM to connect to MCP Gateway
 ```
 
-## Agent Configuration (.bedrock_agentcore.yaml)
+## Agent Configuration Pattern (.bedrock_agentcore.yaml)
 
-Key fields:
+When building your own agent, adapt these fields to match your Cognito pool and IAM configuration:
 
 ```yaml
 default_agent: <agent_name>
@@ -102,10 +125,10 @@ agents:
   <agent_name>:
     platform: linux/arm64
     aws:
-      account: '175678592674'
+      account: '<ACCOUNT_ID>'
       region: us-east-1
-      execution_role: arn:aws:iam::175678592674:role/...
-      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/...
+      execution_role: arn:aws:iam::<ACCOUNT_ID>:role/...
+      ecr_repository: <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/...
     authorizer_configuration:
       customJWTAuthorizer:
         discoveryUrl: https://cognito-idp.us-east-1.amazonaws.com/...
@@ -121,7 +144,7 @@ agents:
 ### SSM Parameters (Incident Agent)
 
 ```bash
-PROFILE="netaiops-deploy"
+PROFILE="<AWS_PROFILE>"
 REGION="us-east-1"
 
 # Datadog (optional)
@@ -172,7 +195,7 @@ cd agents/<name>/agent && agentcore status
 ```bash
 aws lambda list-functions \
   --query "Functions[?starts_with(FunctionName,'incident-')].[FunctionName,State]" \
-  --output table --profile netaiops-deploy --region us-east-1
+  --output table --profile <AWS_PROFILE> --region us-east-1
 ```
 
 ### Lambda Direct Test
@@ -180,6 +203,6 @@ aws lambda list-functions \
 ```bash
 aws lambda invoke --function-name incident-container-insight-tools \
   --payload '{"name":"container-insight-cluster-overview","arguments":{"cluster_name":"netaiops-eks-cluster"}}' \
-  /tmp/out.json --profile netaiops-deploy --region us-east-1
+  /tmp/out.json --profile <AWS_PROFILE> --region us-east-1
 cat /tmp/out.json | python3 -m json.tool
 ```
