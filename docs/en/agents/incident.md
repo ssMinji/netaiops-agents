@@ -118,7 +118,7 @@ cd agents/incident-agent/agent-cached
 AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=<AWS_PROFILE> agentcore deploy
 ```
 
-After deployment, follow the same post-deployment checklist (JWT authorizer restore, SSM ARN registration, execution role permissions) as the standard agent. The cached runtime gets its own ARN stored in SSM.
+After deployment, follow the same post-deployment checklist (JWT authorizer verification, SSM ARN registration, execution role permissions) as the standard agent. The cached runtime gets its own ARN stored in SSM.
 
 **Important**: Because `agentcore deploy` uses CodeBuild which zips the source directory, `agent-cached/` contains actual file copies (not symlinks) of the shared `agent_config/` files.
 

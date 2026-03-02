@@ -6,13 +6,21 @@
 
 ### 403 Authorization Method Mismatch
 
-**발생 원인**: `agentcore deploy`는 배포할 때마다 `authorizer_configuration`을 null로 초기화합니다. 이는 AgentCore CLI의 알려진 동작으로, 각 배포를 새로운 구성으로 취급합니다.
+**발생 원인**: `agentcore deploy`는 `.bedrock_agentcore.yaml`에서 `authorizer_configuration`을 읽어 그대로 적용합니다. yaml에 `authorizer_configuration: null`(초기 배포 후 기본값)이 있으면 런타임의 authorizer가 null로 설정되어 JWT 기반 호출이 403을 반환합니다.
 
-**패턴**: JWT 기반 인증(Cognito, 커스텀 OIDC)을 사용하는 모든 에이전트는 재배포 후 authorizer를 잃게 됩니다.
+**패턴**: `.bedrock_agentcore.yaml`에 `customJWTAuthorizer` 블록이 없는 상태에서 JWT 인증을 사용하는 모든 에이전트에 해당합니다.
 
-**예방**: CI/CD 파이프라인에서 배포 후 단계로 authorizer 복원을 자동화하세요.
+**예방**: 배포 전 `.bedrock_agentcore.yaml`에 올바른 authorizer 설정을 포함하세요:
 
-**해결**:
+```yaml
+authorizer_configuration:
+  customJWTAuthorizer:
+    allowedClients:
+      - <COGNITO_CLIENT_ID>
+    discoveryUrl: https://cognito-idp.<REGION>.amazonaws.com/<POOL_ID>/.well-known/openid-configuration
+```
+
+**해결** (null 상태로 배포된 경우): 재배포 없이 API로 복원:
 
 ```python
 client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')

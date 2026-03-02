@@ -109,29 +109,20 @@ Each agent is deployed as an ARM64 container on Bedrock AgentCore via CodeBuild.
 
 After `agentcore deploy`, the following steps are required for any AgentCore agent. These are not specific to this project — they apply to any agent using Cognito JWT auth and SSM-based configuration:
 
-### 1. Restore JWT Authorizer
+### 1. Verify JWT Authorizer
 
-`agentcore deploy` resets the authorizer configuration. Restore it:
+`agentcore deploy` applies the `authorizer_configuration` from `.bedrock_agentcore.yaml`. If the yaml contains the correct `customJWTAuthorizer` block, no action is needed. If the field is `null`, update the yaml before deploying:
 
-```python
-import boto3
-client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-
-resp = client.get_agent_runtime(agentRuntimeId='<AGENT_ID>')
-client.update_agent_runtime(
-    agentRuntimeId='<AGENT_ID>',
-    agentRuntimeArtifact=resp['agentRuntimeArtifact'],
-    roleArn=resp['roleArn'],
-    networkConfiguration=resp['networkConfiguration'],
-    protocolConfiguration=resp['protocolConfiguration'],
-    authorizerConfiguration={
-        'customJWTAuthorizer': {
-            'discoveryUrl': '<COGNITO_DISCOVERY_URL>',
-            'allowedClients': ['<COGNITO_CLIENT_ID>']
-        }
-    }
-)
+```yaml
+# .bedrock_agentcore.yaml
+authorizer_configuration:
+  customJWTAuthorizer:
+    allowedClients:
+      - <COGNITO_CLIENT_ID>
+    discoveryUrl: https://cognito-idp.<REGION>.amazonaws.com/<POOL_ID>/.well-known/openid-configuration
 ```
+
+If already deployed with `null`, restore via API without redeploying (see [Troubleshooting](../troubleshooting/README.md#403-authorization-method-mismatch)).
 
 ### 2. Register Agent ARN in SSM
 

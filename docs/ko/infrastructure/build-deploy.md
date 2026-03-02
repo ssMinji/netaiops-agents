@@ -109,29 +109,20 @@ done
 
 `agentcore deploy` 후 모든 AgentCore 에이전트에 대해 다음 단계가 필요합니다. 이 프로젝트에만 해당하는 것이 아니라 Cognito JWT 인증과 SSM 기반 구성을 사용하는 모든 에이전트에 적용됩니다:
 
-### 1. JWT Authorizer 복원
+### 1. JWT Authorizer 확인
 
-`agentcore deploy`는 authorizer 설정을 초기화합니다. 복원 방법:
+`agentcore deploy`는 `.bedrock_agentcore.yaml`의 `authorizer_configuration`을 그대로 적용합니다. yaml에 올바른 `customJWTAuthorizer` 블록이 있으면 추가 작업이 필요 없습니다. 필드가 `null`이면 배포 전에 yaml을 수정하세요:
 
-```python
-import boto3
-client = boto3.client('bedrock-agentcore-control', region_name='us-east-1')
-
-resp = client.get_agent_runtime(agentRuntimeId='<AGENT_ID>')
-client.update_agent_runtime(
-    agentRuntimeId='<AGENT_ID>',
-    agentRuntimeArtifact=resp['agentRuntimeArtifact'],
-    roleArn=resp['roleArn'],
-    networkConfiguration=resp['networkConfiguration'],
-    protocolConfiguration=resp['protocolConfiguration'],
-    authorizerConfiguration={
-        'customJWTAuthorizer': {
-            'discoveryUrl': '<COGNITO_DISCOVERY_URL>',
-            'allowedClients': ['<COGNITO_CLIENT_ID>']
-        }
-    }
-)
+```yaml
+# .bedrock_agentcore.yaml
+authorizer_configuration:
+  customJWTAuthorizer:
+    allowedClients:
+      - <COGNITO_CLIENT_ID>
+    discoveryUrl: https://cognito-idp.<REGION>.amazonaws.com/<POOL_ID>/.well-known/openid-configuration
 ```
+
+이미 `null` 상태로 배포한 경우, 재배포 없이 API로 복원할 수 있습니다([트러블슈팅](../troubleshooting/README.md#403-authorization-method-mismatch) 참조).
 
 ### 2. SSM에 에이전트 ARN 등록
 

@@ -118,7 +118,7 @@ cd agents/incident-agent/agent-cached
 AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=<AWS_PROFILE> agentcore deploy
 ```
 
-배포 후 표준 에이전트와 동일한 배포 후 체크리스트(JWT authorizer 복원, SSM ARN 등록, 실행 역할 권한)를 따릅니다. 캐시 런타임은 자체 ARN을 SSM에 저장합니다.
+배포 후 표준 에이전트와 동일한 배포 후 체크리스트(JWT authorizer 확인, SSM ARN 등록, 실행 역할 권한)를 따릅니다. 캐시 런타임은 자체 ARN을 SSM에 저장합니다.
 
 **중요**: `agentcore deploy`는 CodeBuild를 사용하여 소스 디렉토리를 zip으로 압축하기 때문에, `agent-cached/`는 공유 `agent_config/` 파일의 심링크가 아닌 실제 파일 복사본을 포함합니다.
 
