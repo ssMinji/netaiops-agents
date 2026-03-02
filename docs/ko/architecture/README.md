@@ -153,5 +153,5 @@ K8s Agent Stack (deploy first)              Istio Agent Stack (deploy after)
 
 ## 관련 페이지
 
-- [Cognito 인증](cognito.md) — 상세 인증 흐름, 에이전트별 풀 구성
+- [AgentCore Identity (Cognito)](cognito.md) — 상세 인증 흐름, 에이전트별 풀 구성
 - [AgentCore 메모리](memory.md) — 메모리 구성, 전략 유형, 트러블슈팅

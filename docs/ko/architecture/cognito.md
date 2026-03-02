@@ -1,4 +1,4 @@
-# Cognito 인증 아키텍처
+# AgentCore Identity (Cognito)
 
 ## 개요
 

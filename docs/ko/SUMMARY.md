@@ -5,7 +5,7 @@
 ## 아키텍처
 
 - [시스템 아키텍처](architecture/README.md)
-- [Cognito 인증](architecture/cognito.md)
+- [AgentCore Identity (Cognito)](architecture/cognito.md)
 - [AgentCore 메모리](architecture/memory.md)
 
 ## 에이전트

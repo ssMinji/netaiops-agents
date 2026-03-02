@@ -153,5 +153,5 @@ Each agent's Cognito, Gateway, and Runtime resources store parameters in SSM at 
 
 ## Related Pages
 
-- [Cognito Authentication](cognito.md) — Detailed auth flows, per-agent pool configuration
+- [AgentCore Identity (Cognito)](cognito.md) — Detailed auth flows, per-agent pool configuration
 - [AgentCore Memory](memory.md) — Memory configuration, strategy types, troubleshooting

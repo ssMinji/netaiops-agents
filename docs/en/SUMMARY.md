@@ -5,7 +5,7 @@
 ## Architecture
 
 - [System Architecture](architecture/README.md)
-- [Cognito Authentication](architecture/cognito.md)
+- [AgentCore Identity (Cognito)](architecture/cognito.md)
 - [AgentCore Memory](architecture/memory.md)
 
 ## Agents

@@ -1,4 +1,4 @@
-# Cognito Authentication Architecture
+# AgentCore Identity (Cognito)
 
 ## Overview
 
