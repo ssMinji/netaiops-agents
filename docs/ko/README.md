@@ -17,35 +17,7 @@ NetAIOps(Network AI Operations)는 AI 에이전트를 통해 자율적인 인프
 
 ## 아키텍처 개요
 
-```
-                    CloudFront (CDN)
-                         |
-                    ALB (HTTPS)
-                         |
-              +----- FastAPI Backend -----+
-              |    (Docker on EC2)        |
-              |                           |
-         Static SPA              SSE Streaming API
-        (React build)           /api/chat, /api/chaos...
-              |                           |
-              |              Bedrock AgentCore Runtime
-              |                    |
-              |         +----------+----------+
-              |         |          |          |
-              |      K8s Agent  Incident   Istio Agent
-              |                  Agent
-              |                           Network Agent
-              |                    |
-              |              MCP Gateway
-              |              (Cognito Auth)
-              |                    |
-              |         +----------+----------+
-              |         |          |          |
-              |    Lambda Tools  MCP Server  MCP Server
-              |   (Datadog,     (EKS)      (Network)
-              |    OpenSearch,
-              |    Chaos, DNS...)
-```
+![아키텍처 개요](../full-architecture.png)
 
 ## 기술 스택
 

@@ -4,64 +4,9 @@
 
 NetAIOps는 계층형 아키텍처를 따릅니다. React 프론트엔드가 FastAPI 백엔드와 통신하고, 백엔드는 AWS Bedrock AgentCore에 배포된 AI 에이전트를 오케스트레이션합니다. 각 에이전트는 MCP(Model Context Protocol) Gateway를 통해 인프라 도구에 접근합니다.
 
-## 컴포넌트 다이어그램
+## 전체 시스템 다이어그램
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Web UI (React)                          │
-│  i18n (en/ko/ja) · Streaming Chat · Chaos/Fault Controls    │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS (CloudFront → ALB)
-┌──────────────────────────▼──────────────────────────────────┐
-│                   FastAPI Backend                             │
-│  /api/chat (SSE)  /api/chaos  /api/fault  /api/dashboard     │
-│  Token caching · Metrics parsing · Agent routing              │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ Bearer Token (Cognito M2M)
-┌──────────────────────────▼──────────────────────────────────┐
-│               Bedrock AgentCore Runtimes                     │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────┐   │
-│  │ K8s Agent│ │ Incident │ │  Istio   │ │   Network     │   │
-│  │          │ │  Agent   │ │  Agent   │ │   Agent       │   │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬────────┘   │
-│       │             │            │               │            │
-│  ┌────▼─────────────▼────────────▼───────────────▼────────┐  │
-│  │              MCP Gateways (Cognito Auth)                │  │
-│  └────┬─────────────┬────────────┬───────────────┬────────┘  │
-└───────┼─────────────┼────────────┼───────────────┼───────────┘
-        │             │            │               │
-   ┌────▼────┐   ┌────▼────┐  ┌───▼───┐    ┌──────▼──────┐
-   │EKS MCP  │   │ Lambda  │  │Lambda │    │Network MCP  │
-   │ Server  │   │  Tools  │  │ Tools │    │  Server     │
-   └─────────┘   └─────────┘  └───────┘    └─────────────┘
-                  Datadog       Prometheus    DNS, CloudWatch
-                  OpenSearch    Fault Inj.   VPC Flow Logs
-                  Container
-                  Insights
-                  Chaos, GitHub
-```
-
-## 인증 흐름
-
-모든 에이전트-게이트웨이 통신은 Cognito M2M(machine-to-machine) 토큰을 사용합니다.
-
-```
-1. Backend reads client_id/secret from SSM Parameter Store
-2. Backend exchanges credentials for Bearer token (Cognito client_credentials grant)
-3. Token cached for 3500 seconds
-4. Bearer token sent in Authorization header to AgentCore Runtime
-5. AgentCore validates JWT against Cognito discovery URL
-6. Agent uses OAuth2 credential provider for MCP Gateway access
-```
-
-### 이중 Cognito 풀 설계
-
-각 에이전트는 두 개의 Cognito User Pool을 사용합니다.
-
-| 풀 | 목적 | 사용처 |
-|------|---------|---------|
-| Agent Pool | 에이전트 런타임의 JWT 인증 | 백엔드 → 에이전트 |
-| Runtime Pool | MCP Gateway의 OAuth2 자격 증명 | 에이전트 → MCP Gateway |
+![전체 아키텍처](../../full-architecture.png)
 
 ## 스트리밍 프로토콜
 
@@ -112,56 +57,6 @@ Frontend ──POST /api/chat──► Backend ──HTTP Stream──► AgentC
 | MCP Gateway | boto3 API | Gateway, Gateway Targets |
 | Agent Runtime | `agentcore deploy` | 에이전트 컨테이너 (ARM64) |
 | Web UI | Docker + CloudFront | FastAPI + React SPA |
-
-## 전체 시스템 다이어그램
-
-![전체 아키텍처](../../full-architecture.png)
-
-```
-us-east-1
-==========
-
-                         ┌─────────────────────────────────────────────┐
-                         │              EKS Cluster                    │
-                         │          (netaiops-eks-cluster)             │
-                         │                                             │
-                         │  ┌──────────┐ ┌──────────┐ ┌────────────┐  │
-                         │  │ retail-  │ │ istio-   │ │ Istio      │  │
-                         │  │ store    │ │ sample   │ │ + ADOT     │  │
-                         │  │ (default)│ │ (Bookinfo│ │ + AMP      │  │
-                         │  └──────────┘ └──────────┘ └────────────┘  │
-                         └──────────┬──────────┬──────────┬───────────┘
-                                    │          │          │
-                    ┌───────────────┤          │          │
-                    │               │          │          │
-        ┌───────────▼────────┐  ┌──▼──────────▼──┐  ┌───▼─────────────────┐
-        │   K8s Agent        │  │ Incident Agent  │  │   Istio Agent       │
-        │                    │  │                 │  │                     │
-        │ ┌────────────────┐ │  │ ┌─────────────┐ │  │ ┌────────────────┐  │
-        │ │ Agent Runtime  │ │  │ │Agent Runtime│ │  │ │ Agent Runtime  │  │
-        │ └───────┬────────┘ │  │ └──────┬──────┘ │  │ └───────┬────────┘  │
-        │         │          │  │        │        │  │         │          │
-        │ ┌───────▼────────┐ │  │ ┌──────▼──────┐ │  │ ┌───────▼────────┐  │
-        │ │ MCP Gateway    │ │  │ │MCP Gateway  │ │  │ │ MCP Gateway    │  │
-        │ │ (mcpServer)    │ │  │ │(Lambda x3)  │ │  │ │ (Hybrid)       │  │
-        │ └───────┬────────┘ │  │ └──────┬──────┘ │  │ │ mcpServer +    │  │
-        │         │          │  │        │        │  │ │ Lambda x1      │  │
-        │ ┌───────▼────────┐ │  │   ┌────┴────┐   │  │ └──┬─────┬──────┘  │
-        │ │ EKS MCP Server │ │  │   │ Lambda  │   │  │    │     │         │
-        │ │ Runtime        │◄├──┼───┼─────────┼───┼──┤    │     │         │
-        │ └────────────────┘ │  │   │ x6 total│   │  │    │     │         │
-        │                    │  │   └─────────┘   │  │    │     │         │
-        │ ┌────────────────┐ │  │ ┌─────────────┐ │  │    │     │         │
-        │ │ Cognito        │ │  │ │ Cognito     │ │  │ ┌──▼──┐ ┌▼──────┐  │
-        │ │ (Agent Pool +  │ │  │ │             │ │  │ │EKS  │ │Prom.  │  │
-        │ │  Runtime Pool) │ │  │ └─────────────┘ │  │ │MCP  │ │Lambda │  │
-        │ └────────────────┘ │  │ ┌─────────────┐ │  │ │reuse│ └───────┘  │
-        │                    │  │ │ SNS + Alarm │ │  │ └─────┘            │
-        │                    │  │ │ (monitoring)│ │  │ ┌────────────────┐  │
-        │                    │  │ └─────────────┘ │  │ │ Cognito        │  │
-        └────────────────────┘  └─────────────────┘  │ └────────────────┘  │
-                                                     └─────────────────────┘
-```
 
 ## 에이전트별 스택 아키텍처
 

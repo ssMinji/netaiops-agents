@@ -4,6 +4,28 @@
 
 각 에이전트는 OAuth2 인증을 위해 Cognito User Pool을 사용합니다. 시스템 전체에서 총 4개 이상의 User Pool이 사용됩니다.
 
+## 인증 흐름
+
+모든 에이전트-게이트웨이 통신은 Cognito M2M(machine-to-machine) 토큰을 사용합니다:
+
+```
+1. Backend reads client_id/secret from SSM Parameter Store
+2. Backend exchanges credentials for Bearer token (Cognito client_credentials grant)
+3. Token cached for 3500 seconds
+4. Bearer token sent in Authorization header to AgentCore Runtime
+5. AgentCore validates JWT against Cognito discovery URL
+6. Agent uses OAuth2 credential provider for MCP Gateway access
+```
+
+### 이중 Cognito 풀 설계
+
+각 에이전트는 두 개의 Cognito User Pool을 사용합니다:
+
+| 풀 | 목적 | 사용처 |
+|------|---------|---------|
+| Agent Pool | 에이전트 런타임의 JWT 인증 | 백엔드 → 에이전트 |
+| Runtime Pool | MCP Gateway의 OAuth2 자격 증명 | 에이전트 → MCP Gateway |
+
 ## User Pool 목록
 
 | User Pool | 에이전트 | 도메인 접두사 | 목적 |

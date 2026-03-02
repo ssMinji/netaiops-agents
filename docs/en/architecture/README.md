@@ -4,64 +4,9 @@
 
 NetAIOps follows a layered architecture where a React frontend communicates with a FastAPI backend, which orchestrates AI agents deployed on AWS Bedrock AgentCore. Each agent accesses infrastructure tools through MCP (Model Context Protocol) Gateways.
 
-## Component Diagram
+## Full System Diagram
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      Web UI (React)                          │
-│  i18n (en/ko/ja) · Streaming Chat · Chaos/Fault Controls    │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS (CloudFront → ALB)
-┌──────────────────────────▼──────────────────────────────────┐
-│                   FastAPI Backend                             │
-│  /api/chat (SSE)  /api/chaos  /api/fault  /api/dashboard     │
-│  Token caching · Metrics parsing · Agent routing              │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ Bearer Token (Cognito M2M)
-┌──────────────────────────▼──────────────────────────────────┐
-│               Bedrock AgentCore Runtimes                     │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────┐   │
-│  │ K8s Agent│ │ Incident │ │  Istio   │ │   Network     │   │
-│  │          │ │  Agent   │ │  Agent   │ │   Agent       │   │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬────────┘   │
-│       │             │            │               │            │
-│  ┌────▼─────────────▼────────────▼───────────────▼────────┐  │
-│  │              MCP Gateways (Cognito Auth)                │  │
-│  └────┬─────────────┬────────────┬───────────────┬────────┘  │
-└───────┼─────────────┼────────────┼───────────────┼───────────┘
-        │             │            │               │
-   ┌────▼────┐   ┌────▼────┐  ┌───▼───┐    ┌──────▼──────┐
-   │EKS MCP  │   │ Lambda  │  │Lambda │    │Network MCP  │
-   │ Server  │   │  Tools  │  │ Tools │    │  Server     │
-   └─────────┘   └─────────┘  └───────┘    └─────────────┘
-                  Datadog       Prometheus    DNS, CloudWatch
-                  OpenSearch    Fault Inj.   VPC Flow Logs
-                  Container
-                  Insights
-                  Chaos, GitHub
-```
-
-## Authentication Flow
-
-All agent-to-gateway communication uses Cognito M2M (machine-to-machine) tokens:
-
-```
-1. Backend reads client_id/secret from SSM Parameter Store
-2. Backend exchanges credentials for Bearer token (Cognito client_credentials grant)
-3. Token cached for 3500 seconds
-4. Bearer token sent in Authorization header to AgentCore Runtime
-5. AgentCore validates JWT against Cognito discovery URL
-6. Agent uses OAuth2 credential provider for MCP Gateway access
-```
-
-### Dual Cognito Pool Design
-
-Each agent uses two Cognito User Pools:
-
-| Pool | Purpose | Used By |
-|------|---------|---------|
-| Agent Pool | JWT authorizer for agent runtime | Backend → Agent |
-| Runtime Pool | OAuth2 credential for MCP gateway | Agent → MCP Gateway |
+![Full Architecture](../../full-architecture.png)
 
 ## Streaming Protocol
 
@@ -112,56 +57,6 @@ The backend parses these markers, strips them from the text stream, and sends a 
 | MCP Gateway | boto3 API | Gateway, Gateway Targets |
 | Agent Runtime | `agentcore deploy` | Agent containers (ARM64) |
 | Web UI | Docker + CloudFront | FastAPI + React SPA |
-
-## Full System Diagram
-
-![Full Architecture](../../full-architecture.png)
-
-```
-us-east-1
-==========
-
-                         ┌─────────────────────────────────────────────┐
-                         │              EKS Cluster                    │
-                         │          (netaiops-eks-cluster)             │
-                         │                                             │
-                         │  ┌──────────┐ ┌──────────┐ ┌────────────┐  │
-                         │  │ retail-  │ │ istio-   │ │ Istio      │  │
-                         │  │ store    │ │ sample   │ │ + ADOT     │  │
-                         │  │ (default)│ │ (Bookinfo│ │ + AMP      │  │
-                         │  └──────────┘ └──────────┘ └────────────┘  │
-                         └──────────┬──────────┬──────────┬───────────┘
-                                    │          │          │
-                    ┌───────────────┤          │          │
-                    │               │          │          │
-        ┌───────────▼────────┐  ┌──▼──────────▼──┐  ┌───▼─────────────────┐
-        │   K8s Agent        │  │ Incident Agent  │  │   Istio Agent       │
-        │                    │  │                 │  │                     │
-        │ ┌────────────────┐ │  │ ┌─────────────┐ │  │ ┌────────────────┐  │
-        │ │ Agent Runtime  │ │  │ │Agent Runtime│ │  │ │ Agent Runtime  │  │
-        │ └───────┬────────┘ │  │ └──────┬──────┘ │  │ └───────┬────────┘  │
-        │         │          │  │        │        │  │         │          │
-        │ ┌───────▼────────┐ │  │ ┌──────▼──────┐ │  │ ┌───────▼────────┐  │
-        │ │ MCP Gateway    │ │  │ │MCP Gateway  │ │  │ │ MCP Gateway    │  │
-        │ │ (mcpServer)    │ │  │ │(Lambda x3)  │ │  │ │ (Hybrid)       │  │
-        │ └───────┬────────┘ │  │ └──────┬──────┘ │  │ │ mcpServer +    │  │
-        │         │          │  │        │        │  │ │ Lambda x1      │  │
-        │ ┌───────▼────────┐ │  │   ┌────┴────┐   │  │ └──┬─────┬──────┘  │
-        │ │ EKS MCP Server │ │  │   │ Lambda  │   │  │    │     │         │
-        │ │ Runtime        │◄├──┼───┼─────────┼───┼──┤    │     │         │
-        │ └────────────────┘ │  │   │ x6 total│   │  │    │     │         │
-        │                    │  │   └─────────┘   │  │    │     │         │
-        │ ┌────────────────┐ │  │ ┌─────────────┐ │  │    │     │         │
-        │ │ Cognito        │ │  │ │ Cognito     │ │  │ ┌──▼──┐ ┌▼──────┐  │
-        │ │ (Agent Pool +  │ │  │ │             │ │  │ │EKS  │ │Prom.  │  │
-        │ │  Runtime Pool) │ │  │ └─────────────┘ │  │ │MCP  │ │Lambda │  │
-        │ └────────────────┘ │  │ ┌─────────────┐ │  │ │reuse│ └───────┘  │
-        │                    │  │ │ SNS + Alarm │ │  │ └─────┘            │
-        │                    │  │ │ (monitoring)│ │  │ ┌────────────────┐  │
-        │                    │  │ └─────────────┘ │  │ │ Cognito        │  │
-        └────────────────────┘  └─────────────────┘  │ └────────────────┘  │
-                                                     └─────────────────────┘
-```
 
 ## Per-Agent Stack Architecture
 

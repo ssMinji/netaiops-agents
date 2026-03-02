@@ -17,35 +17,7 @@ NetAIOps (Network AI Operations) is a multi-agent system that provides autonomou
 
 ## Architecture Overview
 
-```
-                    CloudFront (CDN)
-                         |
-                    ALB (HTTPS)
-                         |
-              +----- FastAPI Backend -----+
-              |    (Docker on EC2)        |
-              |                           |
-         Static SPA              SSE Streaming API
-        (React build)           /api/chat, /api/chaos...
-              |                           |
-              |              Bedrock AgentCore Runtime
-              |                    |
-              |         +----------+----------+
-              |         |          |          |
-              |      K8s Agent  Incident   Istio Agent
-              |                  Agent
-              |                           Network Agent
-              |                    |
-              |              MCP Gateway
-              |              (Cognito Auth)
-              |                    |
-              |         +----------+----------+
-              |         |          |          |
-              |    Lambda Tools  MCP Server  MCP Server
-              |   (Datadog,     (EKS)      (Network)
-              |    OpenSearch,
-              |    Chaos, DNS...)
-```
+![Architecture Overview](../full-architecture.png)
 
 ## Tech Stack
 

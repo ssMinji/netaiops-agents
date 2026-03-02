@@ -4,6 +4,28 @@
 
 Each agent uses Cognito User Pools for OAuth2 authentication. A total of 4+ User Pools are used across the system.
 
+## Authentication Flow
+
+All agent-to-gateway communication uses Cognito M2M (machine-to-machine) tokens:
+
+```
+1. Backend reads client_id/secret from SSM Parameter Store
+2. Backend exchanges credentials for Bearer token (Cognito client_credentials grant)
+3. Token cached for 3500 seconds
+4. Bearer token sent in Authorization header to AgentCore Runtime
+5. AgentCore validates JWT against Cognito discovery URL
+6. Agent uses OAuth2 credential provider for MCP Gateway access
+```
+
+### Dual Cognito Pool Design
+
+Each agent uses two Cognito User Pools:
+
+| Pool | Purpose | Used By |
+|------|---------|---------|
+| Agent Pool | JWT authorizer for agent runtime | Backend → Agent |
+| Runtime Pool | OAuth2 credential for MCP gateway | Agent → MCP Gateway |
+
 ## User Pool Inventory
 
 | User Pool | Agent | Domain Prefix | Purpose |
