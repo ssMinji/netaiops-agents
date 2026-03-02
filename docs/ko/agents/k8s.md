@@ -36,6 +36,15 @@ K8s Agent는 포괄적인 Kubernetes 작업 세트를 제공하는 **AWS Labs EK
 | Resource Usage Analysis | 네임스페이스별 CPU/메모리 활용도 |
 | Workload Overview | 배포, 서비스 및 해당 상태 목록 |
 
+## AWS 서비스 권한
+
+| 구성요소 | 필요 AWS 서비스 | 비고 |
+|-----------|----------------------|-------|
+| **Agent 런타임** | Bedrock, SSM, CloudWatch | Gateway 실행 역할 |
+| **EKS MCP Server** | EKS, Kubernetes API, CloudWatch Logs, EC2/VPC, IAM (읽기 전용) | MCP Server 런타임 역할 — 모든 K8s 작업이 여기서 실행 |
+
+Agent 런타임은 EKS에 직접 접근하지 않습니다. 모든 Kubernetes 작업은 EKS 및 Kubernetes API 권한을 보유한 **EKS MCP Server 런타임**에서 수행됩니다. 에이전트는 MCP Gateway를 통해 MCP Server와 통신합니다.
+
 ## 사전 요구사항
 
 ### EKS MCP Server

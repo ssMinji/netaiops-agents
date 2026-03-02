@@ -36,6 +36,15 @@ The agent is configured to verify cluster existence before operations, preventin
 | Resource Usage Analysis | CPU/memory utilization across namespaces |
 | Workload Overview | List deployments, services, and their health status |
 
+## AWS Service Permissions
+
+| Component | Required AWS Services | Notes |
+|-----------|----------------------|-------|
+| **Agent Runtime** | Bedrock, SSM, CloudWatch | Gateway execution role |
+| **EKS MCP Server** | EKS, Kubernetes API, CloudWatch Logs, EC2/VPC, IAM (read-only) | MCP Server runtime role — all K8s operations run here |
+
+The agent runtime does not directly access EKS. All Kubernetes operations are performed by the **EKS MCP Server runtime**, which holds EKS and Kubernetes API permissions. The agent communicates with the MCP Server through the MCP Gateway.
+
 ## Prerequisites
 
 ### EKS MCP Server

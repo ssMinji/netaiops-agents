@@ -39,6 +39,17 @@ Kubernetes 오브젝트 검사를 위해 K8s Agent와 공유:
 | Control Plane Status | istiod, pilot, 컨트롤 플레인 상태 검사 |
 | Latency Hotspot Detection | 레이턴시 스파이크를 유발하는 서비스 식별 |
 
+## AWS 서비스 권한
+
+| 구성요소 | 필요 AWS 서비스 | 비고 |
+|-----------|----------------------|-------|
+| **Agent 런타임** | Bedrock, SSM, CloudWatch | Gateway 실행 역할 |
+| **EKS MCP Server** | EKS, Kubernetes API, CloudWatch Logs, EC2/VPC | K8s Agent와 공유 — Istio CRD 검사가 여기서 실행 |
+| **Lambda (Prometheus)** | AMP (Amazon Managed Prometheus) | Lambda 실행 역할 |
+| **Lambda (Fault)** | EKS | Lambda 실행 역할 |
+
+Istio CRD 검사(VirtualService, DestinationRule 등)는 Agent 런타임이 아닌 **공유 EKS MCP Server**에서 수행됩니다. Prometheus 메트릭과 fault injection은 전용 Lambda 함수에서 처리됩니다.
+
 ## Fault Injection 통합
 
 UI는 Istio Agent를 위한 전용 FaultPanel을 제공합니다.

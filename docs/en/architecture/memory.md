@@ -4,6 +4,8 @@
 
 AgentCore Memory allows agents to remember conversation context across sessions. Events (conversations) are stored and transformed into semantically searchable memory records through LLM-based extraction.
 
+**When extraction happens**: After an event is saved via `create_event()` or `save_conversation()`, AgentCore **asynchronously** invokes the configured memory strategy to extract facts from the raw conversation. This extraction runs in the background using the `memoryExecutionRole` to call a Bedrock model. It is not instant — there is a delay (typically seconds) between saving an event and the resulting memory record becoming available for retrieval via `retrieve_memories()`.
+
 ## Architecture
 
 ```
@@ -174,6 +176,8 @@ class MemoryHookProvider:
 ### Pattern B: Incident Agent
 
 The Incident Agent uses a `MemoryHook` class with STM (Short-Term Memory) injection and hardcoded dual namespaces.
+
+**Why a different pattern?** The Incident Agent needs conversation continuity within a session (not just cross-session recall), so it injects the last 5 turns as Short-Term Memory at initialization. The other agents only need cross-session semantic search. Additionally, the Incident Agent uses two separate namespaces (`context` and `history`) to separate diagnostic context from conversation history, while the other agents use a single dynamically discovered namespace.
 
 **Hook events:**
 - `AgentInitializedEvent` → Load last 5 conversation turns (STM)

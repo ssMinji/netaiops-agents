@@ -48,6 +48,17 @@ Comprehensive AWS networking operations:
 | Flow Logs Analysis | Analyze VPC Flow Logs for rejected/accepted traffic |
 | Load Balancer Metrics | ALB/NLB health, request counts, error rates |
 
+## AWS Service Permissions
+
+| Component | Required AWS Services | Notes |
+|-----------|----------------------|-------|
+| **Agent Runtime** | Bedrock, SSM, CloudWatch, EC2/VPC (basic) | Gateway execution role |
+| **Network MCP Server** | EC2/VPC (extended), Transit Gateway, Network Firewall, VPN, Network Manager | MCP Server runtime role — handles ~27 networking tools |
+| **Lambda (DNS)** | Route 53 (read-only) | Lambda execution role |
+| **Lambda (Metrics)** | CloudWatch, EC2, ELB | Lambda execution role |
+
+The agent runtime itself has basic EC2/VPC describe permissions, but the majority of network inspection capabilities come from the **Network MCP Server runtime**, which holds the extended VPC, Transit Gateway, and Network Firewall permissions.
+
 ## Prerequisites
 
 ### Network MCP Server

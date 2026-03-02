@@ -48,6 +48,17 @@ agents/network-agent/
 | Flow Logs Analysis | 거부/허용된 트래픽에 대한 VPC Flow Log 분석 |
 | Load Balancer Metrics | ALB/NLB 상태, 요청 수, 에러율 |
 
+## AWS 서비스 권한
+
+| 구성요소 | 필요 AWS 서비스 | 비고 |
+|-----------|----------------------|-------|
+| **Agent 런타임** | Bedrock, SSM, CloudWatch, EC2/VPC (기본) | Gateway 실행 역할 |
+| **Network MCP Server** | EC2/VPC (확장), Transit Gateway, Network Firewall, VPN, Network Manager | MCP Server 런타임 역할 — ~27개 네트워킹 도구 처리 |
+| **Lambda (DNS)** | Route 53 (읽기 전용) | Lambda 실행 역할 |
+| **Lambda (Metrics)** | CloudWatch, EC2, ELB | Lambda 실행 역할 |
+
+Agent 런타임 자체는 기본적인 EC2/VPC describe 권한만 보유하며, 대부분의 네트워크 검사 기능은 확장된 VPC, Transit Gateway, Network Firewall 권한을 보유한 **Network MCP Server 런타임**에서 수행됩니다.
+
 ## 사전 요구사항
 
 ### Network MCP Server

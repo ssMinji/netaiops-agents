@@ -4,6 +4,8 @@
 
 AgentCore 메모리는 에이전트가 세션 간 대화 컨텍스트를 기억할 수 있게 합니다. 이벤트(대화)가 저장되고 LLM 기반 추출을 통해 의미적으로 검색 가능한 메모리 레코드로 변환됩니다.
 
+**추출 시점**: `create_event()` 또는 `save_conversation()`으로 이벤트가 저장된 후, AgentCore가 구성된 메모리 전략을 사용하여 원시 대화에서 사실을 **비동기적으로** 추출합니다. 이 추출은 `memoryExecutionRole`을 사용하여 Bedrock 모델을 호출하며 백그라운드에서 실행됩니다. 즉각적이지 않으며, 이벤트 저장 후 `retrieve_memories()`로 검색 가능한 메모리 레코드가 생성되기까지 지연(일반적으로 수 초)이 있습니다.
+
 ## 아키텍처
 
 ```
@@ -174,6 +176,8 @@ class MemoryHookProvider:
 ### 패턴 B: Incident Agent
 
 Incident Agent는 STM(단기 메모리) 주입과 하드코딩된 이중 네임스페이스를 사용하는 `MemoryHook` 클래스를 사용합니다.
+
+**왜 다른 패턴인가?** Incident Agent는 세션 간 회상뿐만 아니라 세션 내 대화 연속성이 필요하므로, 초기화 시 마지막 5턴을 단기 메모리로 주입합니다. 다른 에이전트들은 세션 간 시맨틱 검색만 필요합니다. 또한 Incident Agent는 진단 컨텍스트와 대화 이력을 분리하기 위해 두 개의 별도 네임스페이스(`context`와 `history`)를 사용하는 반면, 다른 에이전트들은 동적으로 탐색된 단일 네임스페이스를 사용합니다.
 
 **Hook 이벤트:**
 - `AgentInitializedEvent` → 마지막 5턴의 대화 로드 (STM)

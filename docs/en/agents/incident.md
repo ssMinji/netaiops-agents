@@ -51,6 +51,20 @@ The Incident Agent has the richest toolset, accessing 6 Lambda-based tool groups
 | Latency Spike | Analyze P99 latency across services using traces |
 | Pod Restart Loop | Investigate CrashLoopBackOff with Container Insights + logs |
 
+## AWS Service Permissions
+
+| Component | Required AWS Services | Notes |
+|-----------|----------------------|-------|
+| **Agent Runtime** | Bedrock, SSM, CloudWatch, Bedrock Memory | Gateway execution role |
+| **Lambda (Datadog)** | Secrets Manager | Datadog API accessed via external credentials |
+| **Lambda (OpenSearch)** | OpenSearch (full HTTP) | Log search, anomaly detection |
+| **Lambda (Container Insights)** | CloudWatch Logs, EKS | Pod/node metrics via Container Insights |
+| **Lambda (Chaos)** | EKS, Kubernetes API | Chaos scenario injection on target cluster |
+| **Lambda (Alarm)** | SNS, CloudWatch | Alarm trigger/notification |
+| **Lambda (GitHub)** | Secrets Manager | GitHub API accessed via external credentials |
+
+The Incident Agent does not use an MCP Server. All tools are Lambda-based, invoked through the MCP Gateway's Lambda target type. Each Lambda shares a common execution role (`incident-tools-lambda-role`).
+
 ## Prompt Caching Variant (agent-cached)
 
 The `agent-cached/` directory is a separate deployment of the Incident Agent with prompt caching enabled. Both variants share identical agent code — the only difference is the `ENABLE_PROMPT_CACHE` environment variable set in the Dockerfile.

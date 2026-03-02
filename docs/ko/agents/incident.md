@@ -51,6 +51,20 @@ Incident Agent는 6개의 Lambda 기반 도구 그룹에 접근하는 가장 풍
 | Latency Spike | 추적을 사용한 서비스 간 P99 레이턴시 분석 |
 | Pod Restart Loop | Container Insights + 로그로 CrashLoopBackOff 조사 |
 
+## AWS 서비스 권한
+
+| 구성요소 | 필요 AWS 서비스 | 비고 |
+|-----------|----------------------|-------|
+| **Agent 런타임** | Bedrock, SSM, CloudWatch, Bedrock Memory | Gateway 실행 역할 |
+| **Lambda (Datadog)** | Secrets Manager | 외부 자격 증명을 통한 Datadog API 접근 |
+| **Lambda (OpenSearch)** | OpenSearch (전체 HTTP) | 로그 검색, 이상 감지 |
+| **Lambda (Container Insights)** | CloudWatch Logs, EKS | Container Insights를 통한 파드/노드 메트릭 |
+| **Lambda (Chaos)** | EKS, Kubernetes API | 대상 클러스터에 카오스 시나리오 주입 |
+| **Lambda (Alarm)** | SNS, CloudWatch | 알람 트리거/알림 |
+| **Lambda (GitHub)** | Secrets Manager | 외부 자격 증명을 통한 GitHub API 접근 |
+
+Incident Agent는 MCP Server를 사용하지 않습니다. 모든 도구가 Lambda 기반이며, MCP Gateway의 Lambda 타겟 유형을 통해 호출됩니다. 각 Lambda는 공통 실행 역할(`incident-tools-lambda-role`)을 공유합니다.
+
 ## 프롬프트 캐싱 변형 (agent-cached)
 
 `agent-cached/` 디렉토리는 프롬프트 캐싱이 활성화된 Incident Agent의 별도 배포입니다. 두 변형은 동일한 에이전트 코드를 공유하며, 유일한 차이점은 Dockerfile에 설정된 `ENABLE_PROMPT_CACHE` 환경변수입니다.

@@ -39,6 +39,17 @@ Shared with the K8s Agent for Kubernetes object inspection:
 | Control Plane Status | Inspect istiod, pilot, and control plane health |
 | Latency Hotspot Detection | Identify services causing latency spikes |
 
+## AWS Service Permissions
+
+| Component | Required AWS Services | Notes |
+|-----------|----------------------|-------|
+| **Agent Runtime** | Bedrock, SSM, CloudWatch | Gateway execution role |
+| **EKS MCP Server** | EKS, Kubernetes API, CloudWatch Logs, EC2/VPC | Shared with K8s Agent — Istio CRD inspection runs here |
+| **Lambda (Prometheus)** | AMP (Amazon Managed Prometheus) | Lambda execution role |
+| **Lambda (Fault)** | EKS | Lambda execution role |
+
+Istio CRD inspection (VirtualService, DestinationRule, etc.) is performed by the **shared EKS MCP Server**, not the agent runtime itself. Prometheus metrics and fault injection are handled by dedicated Lambda functions.
+
 ## Fault Injection Integration
 
 The UI provides a dedicated FaultPanel for the Istio Agent:
