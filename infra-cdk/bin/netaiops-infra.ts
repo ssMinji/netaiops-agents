@@ -4,6 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { K8sAgentStack } from '../lib/stacks/k8s-agent/k8s-agent-stack';
 import { IncidentAgentStack } from '../lib/stacks/incident-agent/incident-agent-stack';
 import { IstioAgentStack } from '../lib/stacks/istio-agent/istio-agent-stack';
+import { NetworkAgentStack } from '../lib/stacks/network-agent/network-agent-stack';
 import { CONFIG } from '../lib/config';
 
 const app = new cdk.App();
@@ -22,4 +23,9 @@ new IncidentAgentStack(app, 'IncidentAgentStack', {
 new IstioAgentStack(app, 'IstioAgentStack', {
   env,
   description: 'Istio Mesh Diagnostics Agent (Cognito, Lambdas, Gateway, Runtime)',
+});
+
+new NetworkAgentStack(app, 'NetworkAgentStack', {
+  env,
+  description: 'Network Diagnostics Agent (Cognito, Lambdas, Gateway, Runtime)',
 });

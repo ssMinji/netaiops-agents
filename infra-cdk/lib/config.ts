@@ -3,10 +3,10 @@
  */
 
 export const CONFIG = {
-  account: '830858425797',
-  primaryRegion: 'ap-northeast-2',
-  alarmRegion: 'ap-northeast-2',
-  profile: 'ssminji-wesang',
+  account: '175678592674',
+  primaryRegion: 'us-east-1',
+  alarmRegion: 'us-east-1',
+  profile: 'netaiops-deploy',
   eksClusterName: 'netaiops-eks-cluster',
 
   k8sAgent: {
@@ -129,6 +129,36 @@ export const CONFIG = {
     },
   },
 
+  networkAgent: {
+    ssmPrefix: '/app/network/agentcore',
+    agentPool: {
+      name: 'NetworkAgentPool',
+      domainPrefix: 'networkagent',
+      resourceServerIdentifier: 'network-diagnostics-server',
+      machineClientName: 'NetworkMachineClient',
+      webClientName: 'NetworkWebClient',
+      webCallbackUrl: 'http://localhost:8501/',
+    },
+    runtimePool: {
+      name: 'NetworkMcpServerPool',
+      domainPrefix: 'network-mcp',
+      resourceServerIdentifier: 'network-mcp-server',
+      machineClientName: 'NetworkMcpServerClient',
+    },
+    lambdas: {
+      dns: { name: 'network-dns-tools', dir: 'dns' },
+      networkMetrics: { name: 'network-metrics-tools', dir: 'network-metrics' },
+    },
+    gateway: {
+      name: 'network-diagnostics-gateway',
+      description: 'AgentCore Network Diagnostics Gateway',
+      oauthProviderName: 'network-mcp-server-oauth',
+    },
+    runtime: {
+      name: 'network_diagnostics_agent_runtime',
+    },
+  },
+
   // Tool schemas for Lambda gateway targets
   toolSchemas: {
     datadog: [
@@ -152,7 +182,7 @@ export const CONFIG = {
           type: 'object',
           properties: {
             tags: { type: 'string', description: "Comma-separated tags to filter events (e.g., 'service:web-app,env:prod')" },
-            priority: { type: 'string', description: "Event priority filter: 'normal' or 'low'. Default: all", enum: ['normal', 'low'] },
+            priority: { type: 'string', description: "Event priority filter. Allowed values: 'normal', 'low'. Default: all" },
             hours: { type: 'integer', description: 'How many hours back to search. Default: 24' },
           },
           required: [],
@@ -168,7 +198,7 @@ export const CONFIG = {
             operation: { type: 'string', description: 'Operation name filter (optional)' },
             min_duration_ms: { type: 'integer', description: 'Minimum trace duration in milliseconds. Default: 1000' },
             hours: { type: 'integer', description: 'How many hours back to search. Default: 1' },
-            status: { type: 'string', description: "Trace status filter: 'error' or 'ok'", enum: ['error', 'ok'] },
+            status: { type: 'string', description: "Trace status filter. Allowed values: 'error', 'ok'" },
           },
           required: ['service'],
         },
@@ -270,6 +300,151 @@ export const CONFIG = {
             period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
           },
           required: ['cluster_name'],
+        },
+      },
+    ],
+    dns: [
+      {
+        name: 'dns-list-hosted-zones',
+        description: 'List all Route 53 hosted zones.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "dns-list-hosted-zones".' },
+            max_items: { type: 'integer', description: 'Maximum number of hosted zones to return. Default: 100' },
+          },
+          required: ['_tool'],
+        },
+      },
+      {
+        name: 'dns-query-records',
+        description: 'Query DNS records in a specific hosted zone.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "dns-query-records".' },
+            zone_id: { type: 'string', description: 'Route 53 hosted zone ID' },
+            record_name: { type: 'string', description: 'DNS record name filter (optional)' },
+            record_type: { type: 'string', description: 'DNS record type filter. Allowed values: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV, PTR, CAA' },
+            max_items: { type: 'integer', description: 'Maximum number of records to return. Default: 100' },
+          },
+          required: ['_tool', 'zone_id'],
+        },
+      },
+      {
+        name: 'dns-check-health',
+        description: 'Check Route 53 health check statuses.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "dns-check-health".' },
+            health_check_id: { type: 'string', description: 'Specific health check ID to query (optional, returns all if not specified)' },
+          },
+          required: ['_tool'],
+        },
+      },
+      {
+        name: 'dns-resolve',
+        description: 'Resolve a DNS name using public DNS resolvers.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "dns-resolve".' },
+            hostname: { type: 'string', description: "Hostname to resolve (e.g., 'example.com')" },
+            record_type: { type: 'string', description: 'DNS record type to query. Allowed values: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV, PTR. Default: A' },
+            nameserver: { type: 'string', description: "Custom nameserver to use (optional, e.g., '8.8.8.8')" },
+          },
+          required: ['_tool', 'hostname'],
+        },
+      },
+    ],
+    networkMetrics: [
+      {
+        name: 'network-list-load-balancers',
+        description: 'List all ALB/NLB load balancers in a region with ARN, DNS name, VPC, type, and state.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "network-list-load-balancers".' },
+            region: { type: 'string', description: "AWS region (e.g., 'us-west-2'). Default: us-east-1" },
+          },
+          required: ['_tool'],
+        },
+      },
+      {
+        name: 'network-list-instances',
+        description: 'List EC2 instances in a region with instance ID, type, state, VPC, subnet, private/public IP.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "network-list-instances".' },
+            region: { type: 'string', description: "AWS region (e.g., 'us-west-2'). Default: us-east-1" },
+            vpc_id: { type: 'string', description: 'Filter by VPC ID (optional)' },
+          },
+          required: ['_tool'],
+        },
+      },
+      {
+        name: 'network-get-instance-metrics',
+        description: 'Get EC2 instance network metrics (NetworkIn/Out, PacketsIn/Out).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "network-get-instance-metrics".' },
+            instance_id: { type: 'string', description: "EC2 instance ID (e.g., 'i-0123456789abcdef0')" },
+            region: { type: 'string', description: "AWS region (e.g., 'us-west-2'). Default: us-east-1" },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 60' },
+            period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
+          },
+          required: ['_tool', 'instance_id'],
+        },
+      },
+      {
+        name: 'network-get-gateway-metrics',
+        description: 'Get NAT Gateway, Transit Gateway, or VPN connection metrics.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "network-get-gateway-metrics".' },
+            gateway_type: { type: 'string', description: "Gateway type. Allowed values: 'natgw', 'tgw', 'vpn'" },
+            gateway_id: { type: 'string', description: "Gateway resource ID (e.g., 'nat-xxx', 'tgw-xxx', 'vpn-xxx')" },
+            region: { type: 'string', description: "AWS region (e.g., 'us-west-2'). Default: us-east-1" },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 60' },
+            period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
+          },
+          required: ['_tool', 'gateway_type', 'gateway_id'],
+        },
+      },
+      {
+        name: 'network-get-elb-metrics',
+        description: 'Get ALB or NLB metrics (TargetResponseTime, ActiveConnectionCount, ProcessedBytes).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "network-get-elb-metrics".' },
+            load_balancer_arn: { type: 'string', description: 'Load balancer ARN or the app/xxx/yyy or net/xxx/yyy portion' },
+            lb_type: { type: 'string', description: "Load balancer type. Allowed values: 'alb', 'nlb'. Default: 'alb'" },
+            region: { type: 'string', description: "AWS region (e.g., 'us-west-2'). Default: us-east-1" },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 60' },
+            period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
+          },
+          required: ['_tool', 'load_balancer_arn'],
+        },
+      },
+      {
+        name: 'network-query-flow-logs',
+        description: 'Query VPC Flow Logs using CloudWatch Logs Insights.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "network-query-flow-logs".' },
+            log_group_name: { type: 'string', description: 'CloudWatch Logs group name for VPC Flow Logs' },
+            query: { type: 'string', description: 'CloudWatch Logs Insights query. Default: top rejected flows' },
+            region: { type: 'string', description: "AWS region (e.g., 'us-west-2'). Default: us-east-1" },
+            minutes: { type: 'integer', description: 'How many minutes back to query. Default: 60' },
+            limit: { type: 'integer', description: 'Maximum number of results. Default: 50' },
+          },
+          required: ['_tool', 'log_group_name'],
         },
       },
     ],

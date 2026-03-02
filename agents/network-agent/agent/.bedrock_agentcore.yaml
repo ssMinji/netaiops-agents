@@ -1,0 +1,75 @@
+default_agent: network_diagnostics_agent_runtime
+agents:
+  network_diagnostics_agent_runtime:
+    name: network_diagnostics_agent_runtime
+    language: python
+    node_version: null
+    entrypoint: main.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: docker
+    source_path: .
+    aws:
+      execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-5f84276e36
+      execution_role_auto_create: false
+      account: '175678592674'
+      region: us-east-1
+      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-network_diagnostics_agent_runtime
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: network_diagnostics_agent_runtime-RJuXKd2aeH
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:runtime/network_diagnostics_agent_runtime-RJuXKd2aeH
+      agent_session_id: null
+    codebuild:
+      project_name: bedrock-agentcore-network_diagnostics_agent_runtime-builder
+      execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-5f84276e36
+      source_bucket: bedrock-agentcore-codebuild-sources-175678592674-us-east-1
+    memory:
+      mode: STM_ONLY
+      memory_id: network_diagnostics_agent_runtime_mem-OSaOFx43jt
+      memory_arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:memory/network_diagnostics_agent_runtime_mem-OSaOFx43jt
+      memory_name: network_diagnostics_agent_runtime_mem
+      event_expiry_days: 30
+      first_invoke_memory_check_done: true
+      was_created_by_toolkit: true
+    identity:
+      credential_providers:
+      - name: network-mcp-server-oauth
+        arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:token-vault/default/oauth2credentialprovider/network-mcp-server-oauth
+        type: cognito
+        callback_url: https://bedrock-agentcore.us-east-1.amazonaws.com/identities/oauth2/callback/cdc1b88a-e0c0-458e-a766-d5fc30388876
+      - name: networkagent-175678592674
+        arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:token-vault/default/oauth2credentialprovider/networkagent-175678592674
+        type: cognito
+        callback_url: https://bedrock-agentcore.us-east-1.amazonaws.com/identities/oauth2/callback/1ffae8e4-c0fe-4af0-ba52-820307a1810c
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration:
+      customJWTAuthorizer:
+        allowedClients:
+        - 380d9aa0ok0td0n5un16lrtm99
+        - 7s3orra69anh9l5rc24lrcmgh9
+        discoveryUrl: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_vJctnmN7O/.well-known/openid-configuration
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false
