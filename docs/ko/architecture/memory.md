@@ -137,41 +137,75 @@ aws bedrock-agentcore-control update-memory \
 
 ## 에이전트별 MemoryHookProvider 구현
 
-### Network / K8s / Istio (동일 패턴)
+두 가지 패턴이 사용됩니다:
+
+### 패턴 A: Network / K8s / Istio
+
+이 에이전트들은 동적 네임스페이스 탐색과 선택적 시드 데이터를 사용하는 `MemoryHookProvider`를 사용합니다.
+
+**Hook 이벤트:**
+- `MessageAddedEvent` → 관련 메모리를 검색하여 사용자 쿼리 앞에 추가
+- `AfterInvocationEvent` → 대화 턴 저장
 
 ```python
-# At init: dynamically query namespaces from strategy
-self.namespaces = get_namespaces(self.client, self.memory_id)
-# → {"SEMANTIC": "network/{actorId}"}
+class MemoryHookProvider:
+    def __init__(self, memory_id, client):
+        self.namespaces = get_namespaces(client, memory_id)
+        # → {"SEMANTIC": "network/{actorId}"}
 
-# Retrieval: retrieve_memories() per namespace
-for context_type, namespace_template in self.namespaces.items():
-    namespace = namespace_template.replace("{actorId}", actor_id)
-    memories = self.client.retrieve_memories(
-        memory_id=..., namespace=namespace, query=user_query, top_k=3)
+    def retrieve_memories(self, event: MessageAddedEvent):
+        # 모든 네임스페이스 타입을 순회하며 네임스페이스당 top-3 검색
+        for context_type, namespace_template in self.namespaces.items():
+            namespace = namespace_template.replace("{actorId}", actor_id)
+            memories = self.client.retrieve_memories(
+                memory_id=..., namespace=namespace, query=user_query, top_k=3)
+        # 사용자 쿼리 앞에 컨텍스트 추가
+        event.messages[-1]["content"] = f"Application Context:\n{context}\n\n{original_query}"
 
-# Storage: create_event()
-self.client.create_event(
-    memory_id=..., actor_id=..., session_id=...,
-    messages=[(user_query, "USER"), (agent_response, "ASSISTANT")])
+    def save_memories(self, event: AfterInvocationEvent):
+        # 사용자 쿼리 + 어시스턴트 응답을 이벤트로 저장
+        self.client.create_event(
+            memory_id=..., actor_id=..., session_id=...,
+            messages=[(user_query, "USER"), (agent_response, "ASSISTANT")])
 ```
 
-### Incident (다른 패턴)
+**시드 메모리**: 첫 실행 시, 이 에이전트들은 `create_event()`를 사용하여 인프라 컨텍스트(예: EKS 클러스터 정보, 네트워크 토폴로지)로 메모리를 미리 채웁니다. 이를 통해 사용자 대화 이전에도 에이전트가 기본 지식을 보유할 수 있습니다.
+
+### 패턴 B: Incident Agent
+
+Incident Agent는 STM(단기 메모리) 주입과 하드코딩된 이중 네임스페이스를 사용하는 `MemoryHook` 클래스를 사용합니다.
+
+**Hook 이벤트:**
+- `AgentInitializedEvent` → 마지막 5턴의 대화 로드 (STM)
+- `MessageAddedEvent` → 2개 네임스페이스에서 시맨틱 메모리 검색 + 대화 저장
 
 ```python
-# At init: inject last 5 turns as agent messages (STM)
-recent_turns = self.memory_client.get_last_k_turns(
-    memory_id=..., actor_id=..., session_id=..., k=5)
+class MemoryHook:
+    def on_agent_initialized(self, event):
+        # 단기 메모리: 마지막 5턴을 에이전트 컨텍스트에 주입
+        recent_turns = self.memory_client.get_last_k_turns(
+            memory_id=..., actor_id=..., session_id=..., k=5)
 
-# Retrieval: 2 hardcoded namespaces
-self.client.retrieve_memories(namespace=f"incident/{actor_id}/context", ...)
-self.client.retrieve_memories(namespace=f"incident/{actor_id}/history", ...)
-
-# Storage: save_conversation() (per message)
-self.memory_client.save_conversation(
-    memory_id=..., actor_id=..., session_id=...,
-    messages=[(text, role)])
+    def on_message_added(self, event):
+        # 2개의 하드코딩된 네임스페이스에서 검색
+        self.client.retrieve_memories(namespace=f"incident/{actor_id}/context", ...)
+        self.client.retrieve_memories(namespace=f"incident/{actor_id}/history", ...)
+        # 메시지별로 대화 저장
+        self.memory_client.save_conversation(
+            memory_id=..., actor_id=..., session_id=...,
+            messages=[(text, role)])
 ```
+
+### 패턴 비교
+
+| 기능 | Network / K8s / Istio | Incident |
+|---------|----------------------|----------|
+| 네임스페이스 탐색 | 동적 (전략 API에서) | 하드코딩 (2개 네임스페이스) |
+| STM (최근 턴) | 미사용 | 초기화 시 마지막 5턴 주입 |
+| 시드 메모리 | 있음 (인프라 컨텍스트) | 없음 |
+| 저장 방법 | `create_event()` (배치) | `save_conversation()` (메시지별) |
+| 검색 Hook | `MessageAddedEvent` | `MessageAddedEvent` |
+| 저장 Hook | `AfterInvocationEvent` | `MessageAddedEvent` |
 
 ## 새 에이전트에 메모리 추가하기
 

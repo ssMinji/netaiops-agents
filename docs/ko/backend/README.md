@@ -120,6 +120,33 @@ data: {"metrics": {"ttfb_ms": 245, "total_ms": 3200, "input_tokens": 1234, "outp
 5. Include in Authorization header for AgentCore calls
 ```
 
+### 토큰 캐싱 메커니즘
+
+백엔드는 중복된 Cognito 토큰 교환을 방지하기 위해 에이전트별로 M2M 토큰을 인메모리 캐시합니다.
+
+```python
+_token_cache: dict = {}  # {agent_id -> {"token": str, "timestamp": float}}
+
+def ensure_token(agent_id: str) -> Optional[str]:
+    cached = _token_cache.get(agent_id)
+    if cached and (time.time() - cached["timestamp"]) < 3500:
+        return cached["token"]
+
+    token = get_m2m_access_token(AGENTS[agent_id]["ssm_prefix"])
+    if token:
+        _token_cache[agent_id] = {"token": token, "timestamp": time.time()}
+    return token
+```
+
+| 파라미터 | 값 | 비고 |
+|-----------|-------|-------|
+| 캐시 저장소 | 인메모리 `dict` | 프로세스 단위, 워커 간 공유되지 않음 |
+| 캐시 키 | `agent_id` | 각 에이전트가 자체 캐시된 토큰 보유 |
+| TTL | 3500초 | Cognito의 3600초 만료 전 100초 안전 마진 |
+| 갱신 | Lazy | 캐시 미스 또는 만료 시에만 새 토큰 취득 |
+
+`get_m2m_access_token()` 함수는 SSM에서 자격 증명(`machine_client_id`, `machine_client_secret`, `cognito_token_url`, `cognito_auth_scope`)을 읽고 Cognito 토큰 엔드포인트에 `client_credentials` grant POST를 수행합니다.
+
 ### 에이전트 ARN 확인
 
 각 에이전트의 런타임 ARN은 SSM에 저장됩니다.

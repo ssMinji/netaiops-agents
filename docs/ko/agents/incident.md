@@ -51,23 +51,64 @@ Incident Agent는 6개의 Lambda 기반 도구 그룹에 접근하는 가장 풍
 | Latency Spike | 추적을 사용한 서비스 간 P99 레이턴시 분석 |
 | Pod Restart Loop | Container Insights + 로그로 CrashLoopBackOff 조사 |
 
-## 프롬프트 캐싱 변형
+## 프롬프트 캐싱 변형 (agent-cached)
 
-`agent-cached/` 디렉토리는 프롬프트 캐싱이 활성화된 변형을 포함합니다.
+`agent-cached/` 디렉토리는 프롬프트 캐싱이 활성화된 Incident Agent의 별도 배포입니다. 두 변형은 동일한 에이전트 코드를 공유하며, 유일한 차이점은 Dockerfile에 설정된 `ENABLE_PROMPT_CACHE` 환경변수입니다.
 
-```python
-BedrockModel(
-    model_id=model_id,
-    cache_config=CacheConfig(strategy="auto"),
-    cache_tools="default"
-)
+### 디렉토리 구조
+
+```
+agents/incident-agent/
+├── agent/                 # 표준 런타임 (캐싱 비활성화)
+│   ├── agent_config/      # 공유 에이전트 로직
+│   ├── Dockerfile         # ENABLE_PROMPT_CACHE 미설정 (기본값 false)
+│   └── .bedrock_agentcore.yaml
+└── agent-cached/          # 캐시 런타임 (캐싱 활성화)
+    ├── agent_config/      # 동일한 에이전트 로직 (심링크가 아닌 복사본)
+    ├── Dockerfile         # ENV ENABLE_PROMPT_CACHE=true
+    └── .bedrock_agentcore.yaml
 ```
 
-이는 다음을 캐싱하여 반복되는 대화의 토큰 사용량을 줄입니다:
-- 도구 정의(`cache_tools`)
-- 마지막 assistant 메시지 컨텍스트(`cache_config`)
+### 주요 차이점
 
-자세한 내용은 [프롬프트 캐싱](../appendix/prompt-caching.md)을 참조하세요.
+| 항목 | 표준 (`agent/`) | 캐시 (`agent-cached/`) |
+|---------|--------------------|-----------------------|
+| `ENABLE_PROMPT_CACHE` | 미설정 (false) | `true` |
+| 런타임 이름 | `incident_analysis_agent_runtime` | `incident_cached_agent_runtime` |
+| 에이전트 코드 | 동일 | 동일 |
+| `cache_config` | 비활성화 | `CacheConfig(strategy="auto")` |
+| `cache_tools` | 비활성화 | `"default"` |
+
+### 캐싱 활성화 방법
+
+에이전트 코드는 환경변수를 사용하여 조건부로 캐싱을 활성화합니다:
+
+```python
+cache_enabled = os.environ.get("ENABLE_PROMPT_CACHE", "false").lower() == "true"
+
+cache_kwargs = (
+    {"cache_config": CacheConfig(strategy="auto"), "cache_tools": "default"}
+    if cache_enabled
+    else {}
+)
+
+self.model = BedrockModel(model_id=self.model_id, **cache_kwargs)
+```
+
+### 배포
+
+캐시 변형은 별도의 AgentCore 런타임으로 배포됩니다:
+
+```bash
+cd agents/incident-agent/agent-cached
+AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
+```
+
+배포 후 표준 에이전트와 동일한 배포 후 체크리스트(JWT authorizer 복원, SSM ARN 등록, 실행 역할 권한)를 따릅니다. 캐시 런타임은 자체 ARN을 SSM에 저장합니다.
+
+**중요**: `agentcore deploy`는 CodeBuild를 사용하여 소스 디렉토리를 zip으로 압축하기 때문에, `agent-cached/`는 공유 `agent_config/` 파일의 심링크가 아닌 실제 파일 복사본을 포함합니다.
+
+자세한 내용은 [프롬프트 캐싱](../appendix/prompt-caching.md)에서 캐싱 메커니즘, 비용 영향, A/B 테스트 가이드를 참조하세요.
 
 ## 카오스 엔지니어링 통합
 

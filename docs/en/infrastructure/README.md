@@ -117,15 +117,4 @@ Creates CloudWatch alarms in a different region than the stack (used for EKS clu
 
 ## Build & Deploy
 
-```bash
-cd infra-cdk
-
-# Type check
-npx tsc --noEmit
-
-# Deploy all stacks
-npx cdk deploy --all --profile netaiops-deploy
-
-# Deploy specific stack
-npx cdk deploy IncidentAgentStack --profile netaiops-deploy
-```
+See [Build & Deploy Guide](build-deploy.md) for detailed CDK build commands, `deploy.sh` phases, and post-deployment checklist.

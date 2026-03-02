@@ -117,15 +117,4 @@ Cognito authorizer와 Lambda 및 mcpServer 타겟 유형을 모두 사용하여 
 
 ## 빌드 및 배포
 
-```bash
-cd infra-cdk
-
-# 타입 체크
-npx tsc --noEmit
-
-# 모든 스택 배포
-npx cdk deploy --all --profile netaiops-deploy
-
-# 특정 스택 배포
-npx cdk deploy IncidentAgentStack --profile netaiops-deploy
-```
+CDK 빌드 명령어, `deploy.sh` 배포 단계, 배포 후 체크리스트에 대한 자세한 내용은 [빌드 및 배포 가이드](build-deploy.md)를 참조하세요.

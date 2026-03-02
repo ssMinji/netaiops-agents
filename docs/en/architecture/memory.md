@@ -137,41 +137,75 @@ All agents currently use **Semantic** strategy only.
 
 ## Per-Agent MemoryHookProvider Implementation
 
-### Network / K8s / Istio (Same Pattern)
+Two distinct patterns are used:
+
+### Pattern A: Network / K8s / Istio
+
+These agents use `MemoryHookProvider` with dynamic namespace discovery and optional seed data.
+
+**Hook events:**
+- `MessageAddedEvent` → Retrieve relevant memories and prepend to user query
+- `AfterInvocationEvent` → Save the conversation turn
 
 ```python
-# At init: dynamically query namespaces from strategy
-self.namespaces = get_namespaces(self.client, self.memory_id)
-# → {"SEMANTIC": "network/{actorId}"}
+class MemoryHookProvider:
+    def __init__(self, memory_id, client):
+        self.namespaces = get_namespaces(client, memory_id)
+        # → {"SEMANTIC": "network/{actorId}"}
 
-# Retrieval: retrieve_memories() per namespace
-for context_type, namespace_template in self.namespaces.items():
-    namespace = namespace_template.replace("{actorId}", actor_id)
-    memories = self.client.retrieve_memories(
-        memory_id=..., namespace=namespace, query=user_query, top_k=3)
+    def retrieve_memories(self, event: MessageAddedEvent):
+        # Iterate all namespace types, retrieve top-3 per namespace
+        for context_type, namespace_template in self.namespaces.items():
+            namespace = namespace_template.replace("{actorId}", actor_id)
+            memories = self.client.retrieve_memories(
+                memory_id=..., namespace=namespace, query=user_query, top_k=3)
+        # Prepend context to user query
+        event.messages[-1]["content"] = f"Application Context:\n{context}\n\n{original_query}"
 
-# Storage: create_event()
-self.client.create_event(
-    memory_id=..., actor_id=..., session_id=...,
-    messages=[(user_query, "USER"), (agent_response, "ASSISTANT")])
+    def save_memories(self, event: AfterInvocationEvent):
+        # Save user query + assistant response as an event
+        self.client.create_event(
+            memory_id=..., actor_id=..., session_id=...,
+            messages=[(user_query, "USER"), (agent_response, "ASSISTANT")])
 ```
 
-### Incident (Different Pattern)
+**Seed memory**: On first run, these agents pre-populate memory with infrastructure context (e.g., EKS cluster info, network topology) using `create_event()`. This ensures the agent has baseline knowledge even before user conversations.
+
+### Pattern B: Incident Agent
+
+The Incident Agent uses a `MemoryHook` class with STM (Short-Term Memory) injection and hardcoded dual namespaces.
+
+**Hook events:**
+- `AgentInitializedEvent` → Load last 5 conversation turns (STM)
+- `MessageAddedEvent` → Retrieve semantic memories from 2 namespaces + save conversation
 
 ```python
-# At init: inject last 5 turns as agent messages (STM)
-recent_turns = self.memory_client.get_last_k_turns(
-    memory_id=..., actor_id=..., session_id=..., k=5)
+class MemoryHook:
+    def on_agent_initialized(self, event):
+        # Short-Term Memory: inject last 5 turns into agent context
+        recent_turns = self.memory_client.get_last_k_turns(
+            memory_id=..., actor_id=..., session_id=..., k=5)
 
-# Retrieval: 2 hardcoded namespaces
-self.client.retrieve_memories(namespace=f"incident/{actor_id}/context", ...)
-self.client.retrieve_memories(namespace=f"incident/{actor_id}/history", ...)
-
-# Storage: save_conversation() (per message)
-self.memory_client.save_conversation(
-    memory_id=..., actor_id=..., session_id=...,
-    messages=[(text, role)])
+    def on_message_added(self, event):
+        # Retrieve from 2 hardcoded namespaces
+        self.client.retrieve_memories(namespace=f"incident/{actor_id}/context", ...)
+        self.client.retrieve_memories(namespace=f"incident/{actor_id}/history", ...)
+        # Save conversation per message
+        self.memory_client.save_conversation(
+            memory_id=..., actor_id=..., session_id=...,
+            messages=[(text, role)])
 ```
+
+### Pattern Comparison
+
+| Feature | Network / K8s / Istio | Incident |
+|---------|----------------------|----------|
+| Namespace discovery | Dynamic (from strategy API) | Hardcoded (2 namespaces) |
+| STM (recent turns) | Not used | Last 5 turns injected at init |
+| Seed memory | Yes (infrastructure context) | No |
+| Storage method | `create_event()` (batch) | `save_conversation()` (per message) |
+| Retrieval hook | `MessageAddedEvent` | `MessageAddedEvent` |
+| Save hook | `AfterInvocationEvent` | `MessageAddedEvent` |
 
 ## Adding Memory to a New Agent
 

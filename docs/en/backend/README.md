@@ -120,6 +120,33 @@ Data is cached per-region with 60-second TTL.
 5. Include in Authorization header for AgentCore calls
 ```
 
+### Token Caching Mechanism
+
+The backend caches M2M tokens in-memory per agent to avoid redundant Cognito token exchanges.
+
+```python
+_token_cache: dict = {}  # {agent_id -> {"token": str, "timestamp": float}}
+
+def ensure_token(agent_id: str) -> Optional[str]:
+    cached = _token_cache.get(agent_id)
+    if cached and (time.time() - cached["timestamp"]) < 3500:
+        return cached["token"]
+
+    token = get_m2m_access_token(AGENTS[agent_id]["ssm_prefix"])
+    if token:
+        _token_cache[agent_id] = {"token": token, "timestamp": time.time()}
+    return token
+```
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| Cache storage | In-memory `dict` | Per-process, not shared across workers |
+| Cache key | `agent_id` | Each agent has its own cached token |
+| TTL | 3500 seconds | 100s safety margin before Cognito's 3600s expiry |
+| Refresh | Lazy | New token fetched only when cache miss or expired |
+
+The `get_m2m_access_token()` function reads credentials from SSM (`machine_client_id`, `machine_client_secret`, `cognito_token_url`, `cognito_auth_scope`) and performs a `client_credentials` grant POST to the Cognito token endpoint.
+
 ### Agent ARN Resolution
 
 Each agent's runtime ARN is stored in SSM:

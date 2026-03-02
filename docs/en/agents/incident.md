@@ -51,23 +51,64 @@ The Incident Agent has the richest toolset, accessing 6 Lambda-based tool groups
 | Latency Spike | Analyze P99 latency across services using traces |
 | Pod Restart Loop | Investigate CrashLoopBackOff with Container Insights + logs |
 
-## Prompt Caching Variant
+## Prompt Caching Variant (agent-cached)
 
-The `agent-cached/` directory contains a variant with prompt caching enabled:
+The `agent-cached/` directory is a separate deployment of the Incident Agent with prompt caching enabled. Both variants share identical agent code — the only difference is the `ENABLE_PROMPT_CACHE` environment variable set in the Dockerfile.
 
-```python
-BedrockModel(
-    model_id=model_id,
-    cache_config=CacheConfig(strategy="auto"),
-    cache_tools="default"
-)
+### Directory Structure
+
+```
+agents/incident-agent/
+├── agent/                 # Standard runtime (caching disabled)
+│   ├── agent_config/      # Shared agent logic
+│   ├── Dockerfile         # ENABLE_PROMPT_CACHE not set (defaults to false)
+│   └── .bedrock_agentcore.yaml
+└── agent-cached/          # Cached runtime (caching enabled)
+    ├── agent_config/      # Identical agent logic (copied, not symlinked)
+    ├── Dockerfile         # ENV ENABLE_PROMPT_CACHE=true
+    └── .bedrock_agentcore.yaml
 ```
 
-This reduces token usage for repeated conversations by caching:
-- Tool definitions (`cache_tools`)
-- Last assistant message context (`cache_config`)
+### Key Differences
 
-See [Prompt Caching](../appendix/prompt-caching.md) for details.
+| Feature | Standard (`agent/`) | Cached (`agent-cached/`) |
+|---------|--------------------|-----------------------|
+| `ENABLE_PROMPT_CACHE` | not set (false) | `true` |
+| Runtime name | `incident_analysis_agent_runtime` | `incident_cached_agent_runtime` |
+| Agent code | Identical | Identical |
+| `cache_config` | Disabled | `CacheConfig(strategy="auto")` |
+| `cache_tools` | Disabled | `"default"` |
+
+### How Caching is Activated
+
+The agent code uses the environment variable to conditionally enable caching:
+
+```python
+cache_enabled = os.environ.get("ENABLE_PROMPT_CACHE", "false").lower() == "true"
+
+cache_kwargs = (
+    {"cache_config": CacheConfig(strategy="auto"), "cache_tools": "default"}
+    if cache_enabled
+    else {}
+)
+
+self.model = BedrockModel(model_id=self.model_id, **cache_kwargs)
+```
+
+### Deployment
+
+The cached variant is deployed as a separate AgentCore runtime:
+
+```bash
+cd agents/incident-agent/agent-cached
+AWS_DEFAULT_REGION=us-east-1 AWS_PROFILE=netaiops-deploy agentcore deploy
+```
+
+After deployment, follow the same post-deployment checklist (JWT authorizer restore, SSM ARN registration, execution role permissions) as the standard agent. The cached runtime gets its own ARN stored in SSM.
+
+**Important**: Because `agentcore deploy` uses CodeBuild which zips the source directory, `agent-cached/` contains actual file copies (not symlinks) of the shared `agent_config/` files.
+
+See [Prompt Caching](../appendix/prompt-caching.md) for caching mechanisms, cost impact, and A/B testing guide.
 
 ## Chaos Engineering Integration
 

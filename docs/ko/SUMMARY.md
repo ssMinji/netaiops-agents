@@ -27,6 +27,7 @@
 ## 인프라
 
 - [CDK 인프라](infrastructure/README.md)
+- [빌드 및 배포](infrastructure/build-deploy.md)
 
 ## 운영
 
