@@ -125,61 +125,6 @@ done
 
 Each agent is deployed as an ARM64 container on Bedrock AgentCore via CodeBuild.
 
-### Placeholder ARN Problem
-
-When an MCP Server runtime must exist before the CDK stack can reference it (e.g., as a Gateway target), but the CDK stack must exist first to create auth resources the MCP Server needs:
-
-1. CDK creates a placeholder SSM parameter for the MCP Server ARN
-2. MCP Server is deployed, actual ARN stored in SSM
-3. CDK stack is redeployed to replace the placeholder with the real ARN
-
-This circular dependency is inherent to any project where CDK-managed Gateways reference CLI-managed MCP Servers.
-
-### SSM Dependency Flow
-
-```
-Phase 1 (CDK deploy --all)
-│
-├── K8sAgentStack
-│   ├── CognitoAuth → SSM write: userpool_id, client_id, ...
-│   ├── CognitoAuth(eks_mcp_) → SSM write: eks_mcp_client_id, ...
-│   ├── Gateway → SSM read: eks_mcp_server_arn ← ★ placeholder at this point
-│   │            SSM write: gateway_url, gateway_id, ...
-│   └── Runtime → SSM write: runtime_arn, runtime_name
-│
-├── IncidentAgentStack
-│   ├── CognitoAuth → SSM write
-│   ├── Lambda x6 → SSM write: *_lambda_arn
-│   ├── Gateway → SSM write: gateway_url, ...
-│   ├── Runtime → SSM write: runtime_arn, ...
-│   └── Monitoring → SSM write: sns_topic_arn
-│
-├── IstioAgentStack (after K8sAgentStack)
-│   ├── CognitoAuth → SSM write
-│   ├── Lambda x2 → SSM write: *_lambda_arn
-│   ├── Gateway → SSM read: eks_mcp_server_arn, eks_mcp_client_id, ... ← K8s SSM
-│   │            SSM write: gateway_url, ...
-│   └── Runtime → SSM write: runtime_arn, ...
-│
-└── NetworkAgentStack
-    ├── CognitoAuth → SSM write
-    ├── Lambda x2 → SSM write: *_lambda_arn
-    ├── Gateway → SSM write: gateway_url, ...
-    └── Runtime → SSM write: runtime_arn, ...
-
-Phase 2 (EKS RBAC)
-│  RBAC only, no SSM involved
-
-Phase 3 (MCP Server deploy)
-│  SSM read: eks_mcp_cognito_* (JWT Authorizer config)
-│  SSM write: eks_mcp_server_arn ← ★ replace with actual ARN
-│
-│  First deploy → redeploy K8sAgentStack (to use real ARN)
-
-Phase 4 (Agent deploy)
-│  Each agent reads gateway_url from SSM to connect to MCP Gateway
-```
-
 ## Post-Deployment Checklist
 
 After `agentcore deploy`, the following steps are required for any AgentCore agent. These are not specific to this project — they apply to any agent using Cognito JWT auth and SSM-based configuration:

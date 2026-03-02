@@ -125,61 +125,6 @@ done
 
 각 에이전트는 CodeBuild를 통해 Bedrock AgentCore에서 ARM64 컨테이너로 배포됩니다.
 
-### 플레이스홀더 ARN 문제
-
-MCP Server 런타임이 CDK 스택보다 먼저 존재해야 하지만(예: Gateway 타겟으로), CDK 스택이 먼저 배포되어야 MCP Server에 필요한 인증 리소스가 생성되는 순환 종속성이 발생합니다:
-
-1. CDK가 MCP Server ARN용 플레이스홀더 SSM 파라미터 생성
-2. MCP Server 배포 후 실제 ARN을 SSM에 저장
-3. CDK 스택을 재배포하여 플레이스홀더를 실제 ARN으로 교체
-
-이 순환 종속성은 CDK가 관리하는 Gateway가 CLI로 관리되는 MCP Server를 참조하는 모든 프로젝트에서 발생합니다.
-
-### SSM 종속성 흐름
-
-```
-Phase 1 (CDK deploy --all)
-│
-├── K8sAgentStack
-│   ├── CognitoAuth → SSM write: userpool_id, client_id, ...
-│   ├── CognitoAuth(eks_mcp_) → SSM write: eks_mcp_client_id, ...
-│   ├── Gateway → SSM read: eks_mcp_server_arn ← ★ 이 시점에 placeholder
-│   │            SSM write: gateway_url, gateway_id, ...
-│   └── Runtime → SSM write: runtime_arn, runtime_name
-│
-├── IncidentAgentStack
-│   ├── CognitoAuth → SSM write
-│   ├── Lambda x6 → SSM write: *_lambda_arn
-│   ├── Gateway → SSM write: gateway_url, ...
-│   ├── Runtime → SSM write: runtime_arn, ...
-│   └── Monitoring → SSM write: sns_topic_arn
-│
-├── IstioAgentStack (K8sAgentStack 이후)
-│   ├── CognitoAuth → SSM write
-│   ├── Lambda x2 → SSM write: *_lambda_arn
-│   ├── Gateway → SSM read: eks_mcp_server_arn, eks_mcp_client_id, ... ← K8s SSM
-│   │            SSM write: gateway_url, ...
-│   └── Runtime → SSM write: runtime_arn, ...
-│
-└── NetworkAgentStack
-    ├── CognitoAuth → SSM write
-    ├── Lambda x2 → SSM write: *_lambda_arn
-    ├── Gateway → SSM write: gateway_url, ...
-    └── Runtime → SSM write: runtime_arn, ...
-
-Phase 2 (EKS RBAC)
-│  RBAC만, SSM 미관여
-
-Phase 3 (MCP Server deploy)
-│  SSM read: eks_mcp_cognito_* (JWT Authorizer 설정)
-│  SSM write: eks_mcp_server_arn ← ★ 실제 ARN으로 교체
-│
-│  첫 배포 → K8sAgentStack 재배포 (실제 ARN 반영)
-
-Phase 4 (Agent deploy)
-│  각 에이전트가 SSM에서 gateway_url을 읽어 MCP Gateway에 연결
-```
-
 ## 배포 후 체크리스트
 
 `agentcore deploy` 후 모든 AgentCore 에이전트에 대해 다음 단계가 필요합니다. 이 프로젝트에만 해당하는 것이 아니라 Cognito JWT 인증과 SSM 기반 구성을 사용하는 모든 에이전트에 적용됩니다:
