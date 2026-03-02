@@ -1,4 +1,4 @@
-import type { AppConfig } from "./types";
+import type { AppConfig, MessageMetrics, DashboardData } from "./types";
 
 export async function fetchConfig(): Promise<AppConfig> {
   const res = await fetch("./api/config");
@@ -12,12 +12,16 @@ export async function streamChat(
   message: string,
   modelId: string,
   onChunk: (text: string) => void,
-  onDone: () => void,
+  onDone: (metrics?: MessageMetrics) => void,
   onError: (err: string) => void,
 ) {
   const controller = new AbortController();
 
   try {
+    const clientStart = performance.now();
+    let clientFirstChunk: number | null = null;
+    let serverMetrics: MessageMetrics | undefined;
+
     const res = await fetch("./api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -53,13 +57,26 @@ export async function streamChat(
         const trimmed = line.trim();
         if (!trimmed) continue;
         if (trimmed === "data: [DONE]") {
-          onDone();
+          const clientTotal = Math.round(performance.now() - clientStart);
+          const combined: MessageMetrics = {
+            ...serverMetrics,
+            client_ttfb_ms: clientFirstChunk ? Math.round(clientFirstChunk - clientStart) : undefined,
+            client_total_ms: clientTotal,
+          };
+          onDone(combined);
           return controller;
         }
         if (trimmed.startsWith("data: ")) {
           try {
             const data = JSON.parse(trimmed.slice(6));
-            onChunk(data.content);
+            if (data.metrics) {
+              serverMetrics = data.metrics;
+            } else if (data.content) {
+              if (clientFirstChunk === null) {
+                clientFirstChunk = performance.now();
+              }
+              onChunk(data.content);
+            }
           } catch {
             // skip malformed chunks
           }
@@ -67,7 +84,13 @@ export async function streamChat(
       }
     }
 
-    onDone();
+    const clientTotal = Math.round(performance.now() - clientStart);
+    const combined: MessageMetrics = {
+      ...serverMetrics,
+      client_ttfb_ms: clientFirstChunk ? Math.round(clientFirstChunk - clientStart) : undefined,
+      client_total_ms: clientTotal,
+    };
+    onDone(combined);
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === "AbortError") return controller;
     onError(String(err));
@@ -122,5 +145,13 @@ export async function cleanupFaults(): Promise<Record<string, unknown>> {
 
 export async function getFaultStatus(): Promise<{ active: string[] }> {
   const res = await fetch("./api/fault/status");
+  return res.json();
+}
+
+// -- Dashboard --------------------------------------------------------------
+export async function fetchDashboard(region?: string): Promise<DashboardData> {
+  const params = region ? `?region=${encodeURIComponent(region)}` : "";
+  const res = await fetch(`./api/dashboard${params}`);
+  if (!res.ok) throw new Error("Failed to fetch dashboard");
   return res.json();
 }

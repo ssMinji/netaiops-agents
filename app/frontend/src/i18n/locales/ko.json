@@ -1,0 +1,286 @@
+{
+  "app": {
+    "title": "NetAIOps Agent Hub"
+  },
+  "sidebar": {
+    "agents": "에이전트",
+    "scenarios": "시나리오"
+  },
+  "welcome": {
+    "subtitle": "AI 기반 클라우드 운영 어시스턴트",
+    "hint": "에이전트를 선택하여 대화를 시작하세요",
+    "getStarted": "시작하기 →"
+  },
+  "chat": {
+    "newChat": "+ 새 대화"
+  },
+  "metrics": {
+    "tokens": "토큰",
+    "client": "(클라이언트)"
+  },
+  "chaos": {
+    "trigger": "인시던트 트리거",
+    "scenarios": "시나리오:",
+    "cleanupAll": "전체 정리",
+    "cpuStress": "CPU 스트레스",
+    "errorInjection": "에러 주입",
+    "latencyInjection": "지연 주입",
+    "podCrash": "파드 크래시"
+  },
+  "fault": {
+    "title": "장애 주입",
+    "faults": "Istio 장애:",
+    "removeAll": "전체 제거",
+    "reviewsDelay": "Reviews 지연 (7s)",
+    "ratings503": "Ratings 503 (50%)",
+    "circuitBreaker": "서킷 브레이커"
+  },
+  "dashboard": {
+    "title": "대시보드",
+    "refresh": "새로고침",
+    "vpcs": "VPC",
+    "ec2": "EC2 인스턴스",
+    "loadBalancers": "로드 밸런서",
+    "natGateways": "NAT 게이트웨이",
+    "name": "이름",
+    "id": "ID",
+    "state": "상태",
+    "type": "유형",
+    "cidr": "CIDR",
+    "scheme": "스킴",
+    "dns": "DNS",
+    "privateIp": "프라이빗 IP",
+    "publicIp": "퍼블릭 IP",
+    "subnet": "서브넷",
+    "noData": "리소스가 없습니다",
+    "loading": "로딩 중...",
+    "error": "대시보드 데이터를 불러올 수 없습니다",
+    "region": "리전"
+  },
+  "agents": {
+    "network": {
+      "name": "네트워크 진단 에이전트",
+      "description": "AWS 네트워크 진단 에이전트 — VPC, DNS, Flow Logs, NAT Gateway, ELB 분석.",
+      "placeholder": "네트워크 진단 요청을 입력하세요... (예: VPC 서브넷 간 연결 상태를 확인해주세요)",
+      "scenarios": {
+        "dns": {
+          "name": "DNS 진단",
+          "prompt": "Route 53 호스팅 존과 레코드 상태를 확인해주세요. 헬스체크 상태와 DNS 해석 결과도 검증해주세요.",
+          "followUps": [
+            "현재 실패 중인 헬스체크는 무엇인가요?",
+            "모든 레코드의 TTL 설정을 보여주세요",
+            "DNS 해석 지연 문제가 있나요?"
+          ]
+        },
+        "vpc": {
+          "name": "VPC 구성 분석",
+          "prompt": "현재 리전의 VPC, 서브넷, 라우팅 테이블, 인터넷/NAT 게이트웨이 구성을 분석해주세요. 보안 그룹 규칙도 확인해주세요.",
+          "followUps": [
+            "과도하게 허용적인 보안 그룹 규칙이 있나요?",
+            "사용되지 않거나 연결 해제된 네트워크 인터페이스를 보여주세요",
+            "사용 가능한 IP 주소가 가장 많은 서브넷은 어디인가요?"
+          ]
+        },
+        "flowlogs": {
+          "name": "Flow Logs 분석",
+          "prompt": "VPC Flow Logs에서 거부된 트래픽 패턴을 분석해주세요. 가장 많이 차단되는 소스 IP와 포트를 식별해주세요.",
+          "followUps": [
+            "가장 많은 거부를 발생시키는 보안 그룹은 무엇인가요?",
+            "최근 24시간 동안의 거부 트래픽 추이를 보여주세요",
+            "차단된 IP 중 내부 서비스의 IP가 있나요?"
+          ]
+        },
+        "elb": {
+          "name": "로드밸런서 메트릭",
+          "prompt": "현재 리전의 ALB/NLB 상태를 확인해주세요. 응답 시간, 활성 연결 수, 처리 바이트를 분석해주세요.",
+          "followUps": [
+            "비정상 타겟이 있는 타겟 그룹은 무엇인가요?",
+            "5xx 에러율 추이를 보여주세요",
+            "트래픽이 불균형하게 분배되는 로드밸런서가 있나요?"
+          ]
+        }
+      }
+    },
+    "incident": {
+      "name": "인시던트 분석 에이전트",
+      "description": "인시던트 자동 분석 에이전트 — Datadog, OpenSearch, Container Insight 통합 분석.",
+      "placeholder": "인시던트 상황을 설명하세요... (예: API 에러율이 5%를 초과했습니다)",
+      "scenarios": {
+        "cpu": {
+          "name": "CPU 급증 분석",
+          "prompt": "EKS 클러스터에서 CPU 사용률이 급증했습니다. chaos-cpu-stress 파드가 배포된 것으로 보입니다. 클러스터 상태와 원인을 분석해주세요.",
+          "followUps": [
+            "현재 CPU를 가장 많이 사용하는 파드는 무엇인가요?",
+            "최근 1시간 동안의 CPU 사용량 추이를 보여주세요",
+            "어떤 조치를 권장하시나요?"
+          ]
+        },
+        "error": {
+          "name": "에러율 증가",
+          "prompt": "web-api 서비스에서 ERROR 로그(ECONNREFUSED)가 급증하고 있습니다. chaos-error-injection 파드의 영향인지 로그와 메트릭을 분석해주세요.",
+          "followUps": [
+            "현재 에러율은 몇 퍼센트인가요?",
+            "영향을 받는 다운스트림 서비스는 무엇인가요?",
+            "최근 30분간의 에러 로그 패턴을 보여주세요"
+          ]
+        },
+        "latency": {
+          "name": "지연 시간 급증",
+          "prompt": "api-gateway 서비스에서 응답 지연(500~1000ms)이 급증하고 있습니다. chaos-latency-injection 파드의 영향인지 컨테이너 상태를 확인해주세요.",
+          "followUps": [
+            "현재 P99 지연 시간은 얼마인가요?",
+            "가장 지연이 큰 엔드포인트는 어디인가요?",
+            "리소스 스로틀링 문제가 있나요?"
+          ]
+        },
+        "pod": {
+          "name": "파드 재시작 반복",
+          "prompt": "EKS 클러스터에서 파드가 반복적으로 재시작(CrashLoopBackOff)되고 있습니다. chaos-pod-crash 파드를 포함하여 진단해주세요.",
+          "followUps": [
+            "크래시되는 파드의 최근 이벤트를 보여주세요",
+            "OOMKilled 또는 종료 코드 세부 정보는 무엇인가요?",
+            "영향을 받는 파드가 어떤 노드에 스케줄되어 있나요?"
+          ]
+        }
+      }
+    },
+    "incident-cached": {
+      "name": "인시던트 에이전트 (캐시)",
+      "description": "인시던트 분석 에이전트 (Prompt Cache ON) — 캐싱 성능 비교용.",
+      "placeholder": "인시던트 상황을 설명하세요... (캐싱 적용 버전)",
+      "scenarios": {
+        "cpu": {
+          "name": "CPU 급증 분석",
+          "prompt": "EKS 클러스터에서 CPU 사용률이 급증했습니다. chaos-cpu-stress 파드가 배포된 것으로 보입니다. 클러스터 상태와 원인을 분석해주세요.",
+          "followUps": [
+            "현재 CPU를 가장 많이 사용하는 파드는 무엇인가요?",
+            "최근 1시간 동안의 CPU 사용량 추이를 보여주세요",
+            "어떤 조치를 권장하시나요?"
+          ]
+        },
+        "error": {
+          "name": "에러율 증가",
+          "prompt": "web-api 서비스에서 ERROR 로그(ECONNREFUSED)가 급증하고 있습니다. chaos-error-injection 파드의 영향인지 로그와 메트릭을 분석해주세요.",
+          "followUps": [
+            "현재 에러율은 몇 퍼센트인가요?",
+            "영향을 받는 다운스트림 서비스는 무엇인가요?",
+            "최근 30분간의 에러 로그 패턴을 보여주세요"
+          ]
+        },
+        "latency": {
+          "name": "지연 시간 급증",
+          "prompt": "api-gateway 서비스에서 응답 지연(500~1000ms)이 급증하고 있습니다. chaos-latency-injection 파드의 영향인지 컨테이너 상태를 확인해주세요.",
+          "followUps": [
+            "현재 P99 지연 시간은 얼마인가요?",
+            "가장 지연이 큰 엔드포인트는 어디인가요?",
+            "리소스 스로틀링 문제가 있나요?"
+          ]
+        },
+        "pod": {
+          "name": "파드 재시작 반복",
+          "prompt": "EKS 클러스터에서 파드가 반복적으로 재시작(CrashLoopBackOff)되고 있습니다. chaos-pod-crash 파드를 포함하여 진단해주세요.",
+          "followUps": [
+            "크래시되는 파드의 최근 이벤트를 보여주세요",
+            "OOMKilled 또는 종료 코드 세부 정보는 무엇인가요?",
+            "영향을 받는 파드가 어떤 노드에 스케줄되어 있나요?"
+          ]
+        }
+      }
+    },
+    "k8s": {
+      "name": "K8s 진단 에이전트",
+      "description": "EKS 클러스터 진단 에이전트 — 리전을 동적으로 전환하며 분석합니다.",
+      "placeholder": "EKS 클러스터에 대해 질문하세요...",
+      "scenarios": {
+        "health": {
+          "name": "클러스터 상태 점검",
+          "prompt": "EKS 클러스터의 전체 상태를 점검해주세요. 노드 상태, 파드 수, 리소스 사용률을 확인하고 이상 징후가 있으면 알려주세요.",
+          "followUps": [
+            "NotReady 상태인 노드가 있나요?",
+            "파드가 가장 많은 네임스페이스는 어디인가요?",
+            "최근 1시간 동안의 클러스터 이벤트를 보여주세요"
+          ]
+        },
+        "pods": {
+          "name": "비정상 파드 진단",
+          "prompt": "현재 클러스터에서 CrashLoopBackOff, Error, Pending 등 비정상 상태의 파드를 찾아 원인을 진단해주세요.",
+          "followUps": [
+            "크래시 중인 파드의 로그를 보여주세요",
+            "OOMKilled를 유발하는 리소스 제한 문제가 있나요?",
+            "이미지 풀 실패가 발생한 파드는 무엇인가요?"
+          ]
+        },
+        "resources": {
+          "name": "리소스 사용량 분석",
+          "prompt": "클러스터 노드와 파드의 CPU, 메모리 사용량을 분석해주세요. 리소스 부족이나 과다 할당된 워크로드가 있는지 확인해주세요.",
+          "followUps": [
+            "메모리를 가장 많이 사용하는 파드는 무엇인가요?",
+            "리소스 고갈 위험이 있는 노드가 있나요?",
+            "리소스 제한이 설정되지 않은 파드를 보여주세요"
+          ]
+        },
+        "workloads": {
+          "name": "워크로드 현황",
+          "prompt": "클러스터의 네임스페이스별 Deployment, StatefulSet, DaemonSet 현황을 보여주세요. 레플리카 수와 가용성 상태를 포함해주세요.",
+          "followUps": [
+            "가용하지 않은 레플리카가 있는 디플로이먼트는 무엇인가요?",
+            "진행 중인 롤아웃이 있나요?",
+            "스케일링된 워크로드의 HPA 설정을 보여주세요"
+          ]
+        }
+      }
+    },
+    "istio": {
+      "name": "Istio 메시 진단 에이전트",
+      "description": "Istio 서비스 메시 진단 에이전트 — mTLS, 트래픽 라우팅, 컨트롤 플레인, Envoy 사이드카 분석.",
+      "placeholder": "Istio 메시 진단 요청을 입력하세요... (예: productpage에서 reviews로 503 에러 발생)",
+      "scenarios": {
+        "connectivity": {
+          "name": "서비스 연결 실패 진단",
+          "prompt": "istio-sample 네임스페이스에서 productpage→reviews 요청 시 503 에러가 발생합니다. 토폴로지, 사이드카, VirtualService, mTLS 설정을 확인해주세요.",
+          "followUps": [
+            "영향을 받는 모든 파드에서 Envoy 사이드카가 실행 중인가요?",
+            "reviews의 VirtualService와 DestinationRule을 보여주세요",
+            "mTLS STRICT 모드가 연결 실패의 원인인가요?"
+          ]
+        },
+        "mtls": {
+          "name": "mTLS 감사",
+          "prompt": "메시 전체의 mTLS 설정 상태를 확인해주세요. retail-store, istio-sample 등 모든 네임스페이스의 PeerAuthentication 정책, 사이드카 미주입 파드, 보안 권고사항을 알려주세요.",
+          "followUps": [
+            "사이드카 주입이 누락된 파드는 무엇인가요?",
+            "네임스페이스별 PeerAuthentication 정책을 보여주세요",
+            "모든 곳에서 STRICT mTLS를 적용하려면 어떤 단계가 필요한가요?"
+          ]
+        },
+        "canary": {
+          "name": "카나리 배포 분석",
+          "prompt": "istio-sample 네임스페이스의 reviews 서비스 트래픽 라우팅 상태를 확인해주세요. VirtualService 가중치 설정(v1=80%, v2=10%, v3=10%)과 실제 트래픽 비율을 비교 분석해주세요.",
+          "followUps": [
+            "실제 트래픽 비율이 설정된 가중치와 일치하나요?",
+            "각 버전의 에러율을 보여주세요",
+            "다음 롤아웃 단계로 무엇을 권장하시나요?"
+          ]
+        },
+        "controlplane": {
+          "name": "컨트롤 플레인 상태",
+          "prompt": "istiod 컨트롤 플레인의 상태를 확인해주세요. xDS 푸시 지연, 에러, 설정 충돌, 연결된 프록시 수를 알려주세요.",
+          "followUps": [
+            "설정 충돌이나 거부가 있나요?",
+            "현재 xDS 푸시 지연 시간은 얼마인가요?",
+            "연결된 프록시 수가 예상과 일치하나요?"
+          ]
+        },
+        "latency": {
+          "name": "지연 핫스팟 탐지",
+          "prompt": "retail-store와 istio-sample 양쪽 네임스페이스의 P99 지연 시간을 스캔하고, 가장 느린 서비스를 식별해주세요. VirtualService fault injection 여부도 확인해주세요.",
+          "followUps": [
+            "서비스 간 호출 중 가장 지연이 높은 것은 무엇인가요?",
+            "활성화된 fault injection 규칙이 있나요?",
+            "가장 느린 서비스의 지연 시간 상세 분석을 보여주세요"
+          ]
+        }
+      }
+    }
+  }
+}

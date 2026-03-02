@@ -1,0 +1,286 @@
+{
+  "app": {
+    "title": "NetAIOps Agent Hub"
+  },
+  "sidebar": {
+    "agents": "Agents",
+    "scenarios": "Scenarios"
+  },
+  "welcome": {
+    "subtitle": "AI-powered Cloud Operations Assistant",
+    "hint": "Select an agent to start a conversation",
+    "getStarted": "Get Started →"
+  },
+  "chat": {
+    "newChat": "+ New Chat"
+  },
+  "metrics": {
+    "tokens": "tokens",
+    "client": "(client)"
+  },
+  "chaos": {
+    "trigger": "Trigger Incident",
+    "scenarios": "Scenarios:",
+    "cleanupAll": "Cleanup All",
+    "cpuStress": "CPU Stress",
+    "errorInjection": "Error Injection",
+    "latencyInjection": "Latency Injection",
+    "podCrash": "Pod Crash"
+  },
+  "fault": {
+    "title": "Fault Injection",
+    "faults": "Istio Faults:",
+    "removeAll": "Remove All",
+    "reviewsDelay": "Reviews Delay (7s)",
+    "ratings503": "Ratings 503 (50%)",
+    "circuitBreaker": "Circuit Breaker"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "refresh": "Refresh",
+    "vpcs": "VPCs",
+    "ec2": "EC2 Instances",
+    "loadBalancers": "Load Balancers",
+    "natGateways": "NAT Gateways",
+    "name": "Name",
+    "id": "ID",
+    "state": "State",
+    "type": "Type",
+    "cidr": "CIDR",
+    "scheme": "Scheme",
+    "dns": "DNS",
+    "privateIp": "Private IP",
+    "publicIp": "Public IP",
+    "subnet": "Subnet",
+    "noData": "No resources found",
+    "loading": "Loading...",
+    "error": "Failed to load dashboard data",
+    "region": "Region"
+  },
+  "agents": {
+    "network": {
+      "name": "Network Diagnostics Agent",
+      "description": "AWS network diagnostics — VPC, DNS, Flow Logs, NAT Gateway, ELB analysis.",
+      "placeholder": "Enter a network diagnostic request... (e.g., Check VPC subnet connectivity)",
+      "scenarios": {
+        "dns": {
+          "name": "DNS Diagnostics",
+          "prompt": "Please check Route 53 hosted zones and record status. Also verify health check status and DNS resolution results.",
+          "followUps": [
+            "Which health checks are currently failing?",
+            "Show me the TTL settings for all records",
+            "Are there any DNS resolution latency issues?"
+          ]
+        },
+        "vpc": {
+          "name": "VPC Config Analysis",
+          "prompt": "Analyze the VPC, subnets, routing tables, and Internet/NAT gateway configuration in the current region. Also check security group rules.",
+          "followUps": [
+            "Are there any overly permissive security group rules?",
+            "Show me unused or unattached network interfaces",
+            "Which subnets have the most available IP addresses?"
+          ]
+        },
+        "flowlogs": {
+          "name": "Flow Logs Analysis",
+          "prompt": "Analyze rejected traffic patterns in VPC Flow Logs. Identify the most frequently blocked source IPs and ports.",
+          "followUps": [
+            "Which security groups are causing the most rejections?",
+            "Show me the trend of rejected traffic over the last 24 hours",
+            "Are any of the blocked IPs from known internal services?"
+          ]
+        },
+        "elb": {
+          "name": "Load Balancer Metrics",
+          "prompt": "Check ALB/NLB status in the current region. Analyze response times, active connections, and processed bytes.",
+          "followUps": [
+            "Which target groups have unhealthy targets?",
+            "Show me the 5xx error rate trend",
+            "Are there any load balancers with uneven traffic distribution?"
+          ]
+        }
+      }
+    },
+    "incident": {
+      "name": "Incident Analysis Agent",
+      "description": "Automated incident analysis — Datadog, OpenSearch, Container Insight integration.",
+      "placeholder": "Describe the incident... (e.g., API error rate exceeded 5%)",
+      "scenarios": {
+        "cpu": {
+          "name": "CPU Spike Analysis",
+          "prompt": "CPU utilization has spiked in the EKS cluster. A chaos-cpu-stress pod appears to have been deployed. Please analyze the cluster status and root cause.",
+          "followUps": [
+            "Which pods are consuming the most CPU right now?",
+            "Show me the CPU usage trend for the last hour",
+            "What remediation actions do you recommend?"
+          ]
+        },
+        "error": {
+          "name": "Error Rate Increase",
+          "prompt": "ERROR logs (ECONNREFUSED) are surging in the web-api service. Please analyze logs and metrics to determine if chaos-error-injection pod is the cause.",
+          "followUps": [
+            "What is the current error rate percentage?",
+            "Which downstream services are affected?",
+            "Show me the error log patterns from the last 30 minutes"
+          ]
+        },
+        "latency": {
+          "name": "Latency Spike",
+          "prompt": "Response latency (500-1000ms) is surging in the api-gateway service. Please check container status to determine if chaos-latency-injection pod is the cause.",
+          "followUps": [
+            "What is the P99 latency right now?",
+            "Which endpoints have the highest latency?",
+            "Are there any resource throttling issues?"
+          ]
+        },
+        "pod": {
+          "name": "Pod Restart Loop",
+          "prompt": "Pods are repeatedly restarting (CrashLoopBackOff) in the EKS cluster. Please diagnose including the chaos-pod-crash pod.",
+          "followUps": [
+            "Show me the recent events for the crashing pods",
+            "What are the OOMKilled or exit code details?",
+            "Which nodes are the affected pods scheduled on?"
+          ]
+        }
+      }
+    },
+    "incident-cached": {
+      "name": "Incident Agent (Cached)",
+      "description": "Incident analysis agent (Prompt Cache ON) — for caching performance comparison.",
+      "placeholder": "Describe the incident... (cached version)",
+      "scenarios": {
+        "cpu": {
+          "name": "CPU Spike Analysis",
+          "prompt": "CPU utilization has spiked in the EKS cluster. A chaos-cpu-stress pod appears to have been deployed. Please analyze the cluster status and root cause.",
+          "followUps": [
+            "Which pods are consuming the most CPU right now?",
+            "Show me the CPU usage trend for the last hour",
+            "What remediation actions do you recommend?"
+          ]
+        },
+        "error": {
+          "name": "Error Rate Increase",
+          "prompt": "ERROR logs (ECONNREFUSED) are surging in the web-api service. Please analyze logs and metrics to determine if chaos-error-injection pod is the cause.",
+          "followUps": [
+            "What is the current error rate percentage?",
+            "Which downstream services are affected?",
+            "Show me the error log patterns from the last 30 minutes"
+          ]
+        },
+        "latency": {
+          "name": "Latency Spike",
+          "prompt": "Response latency (500-1000ms) is surging in the api-gateway service. Please check container status to determine if chaos-latency-injection pod is the cause.",
+          "followUps": [
+            "What is the P99 latency right now?",
+            "Which endpoints have the highest latency?",
+            "Are there any resource throttling issues?"
+          ]
+        },
+        "pod": {
+          "name": "Pod Restart Loop",
+          "prompt": "Pods are repeatedly restarting (CrashLoopBackOff) in the EKS cluster. Please diagnose including the chaos-pod-crash pod.",
+          "followUps": [
+            "Show me the recent events for the crashing pods",
+            "What are the OOMKilled or exit code details?",
+            "Which nodes are the affected pods scheduled on?"
+          ]
+        }
+      }
+    },
+    "k8s": {
+      "name": "K8s Diagnostics Agent",
+      "description": "EKS cluster diagnostics — dynamically switching regions for analysis.",
+      "placeholder": "Ask about your EKS clusters...",
+      "scenarios": {
+        "health": {
+          "name": "Cluster Health Check",
+          "prompt": "Please check the overall status of the EKS cluster. Verify node status, pod count, resource utilization, and report any anomalies.",
+          "followUps": [
+            "Are there any nodes in NotReady state?",
+            "Which namespaces have the most pods?",
+            "Show me the cluster events from the last hour"
+          ]
+        },
+        "pods": {
+          "name": "Unhealthy Pod Diagnostics",
+          "prompt": "Find pods in CrashLoopBackOff, Error, or Pending state in the cluster and diagnose the root cause.",
+          "followUps": [
+            "Show me the logs for the crashing pods",
+            "Are there any resource limit issues causing OOMKilled?",
+            "Which images are failing to pull?"
+          ]
+        },
+        "resources": {
+          "name": "Resource Usage Analysis",
+          "prompt": "Analyze CPU and memory usage across cluster nodes and pods. Check for resource shortages or over-allocated workloads.",
+          "followUps": [
+            "Which pods are using the most memory?",
+            "Are any nodes at risk of resource exhaustion?",
+            "Show me pods without resource limits set"
+          ]
+        },
+        "workloads": {
+          "name": "Workload Overview",
+          "prompt": "Show the Deployment, StatefulSet, and DaemonSet status per namespace. Include replica counts and availability status.",
+          "followUps": [
+            "Which deployments have unavailable replicas?",
+            "Are there any pending rollouts?",
+            "Show me the HPA configuration for scaled workloads"
+          ]
+        }
+      }
+    },
+    "istio": {
+      "name": "Istio Mesh Diagnostics Agent",
+      "description": "Istio service mesh diagnostics — mTLS, traffic routing, control plane, Envoy sidecar analysis.",
+      "placeholder": "Enter an Istio mesh diagnostic request... (e.g., 503 error from productpage to reviews)",
+      "scenarios": {
+        "connectivity": {
+          "name": "Service Connectivity Failure",
+          "prompt": "In the istio-sample namespace, requests from productpage to reviews return 503 errors. Please check topology, sidecars, VirtualService, and mTLS configuration.",
+          "followUps": [
+            "Are the Envoy sidecars running on all affected pods?",
+            "Show me the VirtualService and DestinationRule for reviews",
+            "Is mTLS STRICT mode causing the connection failures?"
+          ]
+        },
+        "mtls": {
+          "name": "mTLS Audit",
+          "prompt": "Please check the mTLS configuration status across the entire mesh. Report PeerAuthentication policies, pods without sidecar injection, and security recommendations for all namespaces including retail-store and istio-sample.",
+          "followUps": [
+            "Which pods are missing sidecar injection?",
+            "Show me the PeerAuthentication policies per namespace",
+            "What steps are needed to enforce STRICT mTLS everywhere?"
+          ]
+        },
+        "canary": {
+          "name": "Canary Deployment Analysis",
+          "prompt": "Please check the traffic routing status for the reviews service in the istio-sample namespace. Compare the VirtualService weight settings (v1=80%, v2=10%, v3=10%) with actual traffic ratios.",
+          "followUps": [
+            "Is the actual traffic ratio matching the configured weights?",
+            "Show me the error rate for each version",
+            "What would you recommend for the next rollout step?"
+          ]
+        },
+        "controlplane": {
+          "name": "Control Plane Status",
+          "prompt": "Please check the istiod control plane status. Report xDS push latency, errors, configuration conflicts, and the number of connected proxies.",
+          "followUps": [
+            "Are there any configuration conflicts or rejections?",
+            "What is the current xDS push latency?",
+            "How many proxies are connected vs expected?"
+          ]
+        },
+        "latency": {
+          "name": "Latency Hotspot Detection",
+          "prompt": "Scan P99 latency across both retail-store and istio-sample namespaces and identify the slowest services. Also check for VirtualService fault injection.",
+          "followUps": [
+            "Which service-to-service calls have the highest latency?",
+            "Are there any active fault injection rules?",
+            "Show me the latency breakdown for the slowest service"
+          ]
+        }
+      }
+    }
+  }
+}

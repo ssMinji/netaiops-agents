@@ -33,6 +33,7 @@ from mcp.client.streamable_http import streamablehttp_client  # MCP HTTP client 
 from strands import Agent                             # Strands AI Agent framework (Strands AI 에이전트 프레임워크)
 from strands_tools import current_time                # Time utility tool (시간 유틸리티 도구)
 from strands.models import BedrockModel               # Bedrock model wrapper (Bedrock 모델 래퍼)
+from strands.models.model import CacheConfig           # Prompt caching config (프롬프트 캐싱 설정)
 from strands.tools.mcp import MCPClient               # MCP client for tool integration (도구 통합용 MCP 클라이언트)
 import logging
 import os
@@ -85,10 +86,18 @@ class IncidentAnalysisAgent:
 
         self.model_id = bedrock_model_id
 
-        # Initialize Bedrock model (Bedrock 모델 초기화)
-        self.model = BedrockModel(
-            model_id=self.model_id,
+        # Initialize Bedrock model with optional prompt caching
+        # 프롬프트 캐싱 옵션이 포함된 Bedrock 모델 초기화
+        cache_enabled = os.environ.get("ENABLE_PROMPT_CACHE", "false").lower() == "true"
+        cache_kwargs = (
+            {
+                "cache_config": CacheConfig(strategy="auto"),
+                "cache_tools": "default",
+            }
+            if cache_enabled
+            else {}
         )
+        self.model = BedrockModel(model_id=self.model_id, **cache_kwargs)
 
         # Store memory hook for memory system (메모리 시스템용 메모리 훅 저장)
         self.memory_hook = memory_hook
@@ -235,6 +244,7 @@ The OpenSearch index for application logs is: eks-app-logs
             Response chunks from the agent / 에이전트의 응답 청크
         """
         import asyncio
+        import json as _json
         max_retries = 3
         retry_delay = 2.0
 
@@ -243,9 +253,41 @@ The OpenSearch index for application logs is: eks-app-logs
                 logger.info(f"Streaming response for query (attempt {attempt + 1})")
 
                 # Stream agent response / 에이전트 응답 스트리밍
+                result = None
+                tools_used = []
                 async for event in self.agent.stream_async(user_query):
                     if "data" in event:
                         yield event["data"]
+                    elif "current_tool_use" in event:
+                        tool_name = event["current_tool_use"].get("name")
+                        if tool_name and tool_name not in tools_used:
+                            tools_used.append(tool_name)
+                    elif "result" in event:
+                        result = event["result"]
+
+                # Emit tools used as a special marker
+                # 사용된 도구 목록을 특수 마커로 전송
+                if tools_used:
+                    yield f"__TOOLS_JSON__{_json.dumps(tools_used)}"
+
+                # Emit token usage metrics as a special marker
+                # 토큰 사용량 메트릭을 특수 마커로 전송
+                if result and hasattr(result, "metrics") and result.metrics:
+                    usage = getattr(result.metrics, "accumulated_usage", None)
+                    if usage:
+                        metrics_data = {}
+                        for src, dst in [
+                            ("inputTokens", "input_tokens"),
+                            ("outputTokens", "output_tokens"),
+                            ("cacheReadInputTokens", "cache_read_tokens"),
+                            ("cacheWriteInputTokens", "cache_creation_tokens"),
+                        ]:
+                            val = usage.get(src)
+                            if val is not None and val > 0:
+                                metrics_data[dst] = val
+                        if metrics_data:
+                            yield f"__METRICS_JSON__{_json.dumps(metrics_data)}"
+
                 return  # Success, exit retry loop / 성공 시 재시도 루프 종료
 
             except Exception as e:

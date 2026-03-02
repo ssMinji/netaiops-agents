@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { applyFault, removeFault, cleanupFaults } from "../api";
 
 interface Props {
@@ -7,12 +8,13 @@ interface Props {
 }
 
 const FAULT_SCENARIOS = [
-  { type: "delay", label: "Reviews Delay (7s)", icon: "🐌" },
-  { type: "abort", label: "Ratings 503 (50%)", icon: "💥" },
-  { type: "circuit-breaker", label: "Circuit Breaker", icon: "🔌" },
+  { type: "delay", key: "fault.reviewsDelay", icon: "🐌" },
+  { type: "abort", key: "fault.ratings503", icon: "💥" },
+  { type: "circuit-breaker", key: "fault.circuitBreaker", icon: "🔌" },
 ];
 
 export default function FaultPanel({ activeFaults, onActiveFaultsChange }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -58,13 +60,14 @@ export default function FaultPanel({ activeFaults, onActiveFaultsChange }: Props
         className={`fault-toggle ${activeFaults.length > 0 ? "has-active" : ""}`}
         onClick={() => setExpanded(!expanded)}
       >
-        🔧 Fault Injection{activeFaults.length > 0 ? ` (${activeFaults.length})` : ""}
+        🔧 {t("fault.title")}{activeFaults.length > 0 ? ` (${activeFaults.length})` : ""}
       </button>
 
       <div className={`fault-panel ${expanded ? "expanded" : ""}`}>
         <div className="fault-content">
-          <span className="fault-label">Istio Faults:</span>
-          {FAULT_SCENARIOS.map(({ type, label, icon }) => {
+          <span className="fault-label">{t("fault.faults")}</span>
+          {FAULT_SCENARIOS.map(({ type, key, icon }) => {
+            const label = t(key);
             const isActive = activeFaults.includes(label);
             return (
               <button
@@ -85,7 +88,7 @@ export default function FaultPanel({ activeFaults, onActiveFaultsChange }: Props
               onClick={handleCleanup}
               disabled={loading !== null}
             >
-              🧹 Remove All
+              🧹 {t("fault.removeAll")}
               {loading === "cleanup" && " ..."}
             </button>
           )}

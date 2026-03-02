@@ -18,6 +18,7 @@ from mcp.client.streamable_http import streamablehttp_client
 from strands import Agent
 from strands_tools import current_time
 from strands.models import BedrockModel
+from strands.models.model import CacheConfig
 from strands.tools.mcp import MCPClient
 import logging
 import os
@@ -192,7 +193,16 @@ class K8sAgent:
             bedrock_model_id = os.environ.get("BEDROCK_MODEL_ID", DEFAULT_MODEL_ID)
 
         self.model_id = bedrock_model_id
-        self.model = BedrockModel(model_id=self.model_id)
+        cache_enabled = os.environ.get("ENABLE_PROMPT_CACHE", "false").lower() == "true"
+        cache_kwargs = (
+            {
+                "cache_config": CacheConfig(strategy="auto"),
+                "cache_tools": "default",
+            }
+            if cache_enabled
+            else {}
+        )
+        self.model = BedrockModel(model_id=self.model_id, **cache_kwargs)
 
         # Build system prompt with account info
         account_id = get_aws_account_id()
@@ -248,9 +258,39 @@ class K8sAgent:
 
     async def stream(self, user_query: str):
         """Stream agent responses."""
+        import json as _json
         try:
+            result = None
+            tools_used = []
             async for event in self.agent.stream_async(user_query):
                 if "data" in event:
                     yield event["data"]
+                elif "current_tool_use" in event:
+                    tool_name = event["current_tool_use"].get("name")
+                    if tool_name and tool_name not in tools_used:
+                        tools_used.append(tool_name)
+                elif "result" in event:
+                    result = event["result"]
+
+            # Emit tools used as a special marker
+            if tools_used:
+                yield f"__TOOLS_JSON__{_json.dumps(tools_used)}"
+
+            # Emit token usage metrics as a special marker
+            if result and hasattr(result, "metrics") and result.metrics:
+                usage = getattr(result.metrics, "accumulated_usage", None)
+                if usage:
+                    metrics_data = {}
+                    for src, dst in [
+                        ("inputTokens", "input_tokens"),
+                        ("outputTokens", "output_tokens"),
+                        ("cacheReadInputTokens", "cache_read_tokens"),
+                        ("cacheWriteInputTokens", "cache_creation_tokens"),
+                    ]:
+                        val = usage.get(src)
+                        if val is not None and val > 0:
+                            metrics_data[dst] = val
+                    if metrics_data:
+                        yield f"__METRICS_JSON__{_json.dumps(metrics_data)}"
         except Exception as e:
             yield f"Error: {e}"

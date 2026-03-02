@@ -52,6 +52,17 @@ function IstioIcon({ size }: { size: number }) {
   );
 }
 
+export function DashboardIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  );
+}
+
 function DefaultIcon({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -65,6 +76,7 @@ export default function AgentIcon({ agentId, size = 20, className }: Props) {
   const iconMap: Record<string, React.ReactNode> = {
     k8s: <K8sIcon size={size} />,
     incident: <IncidentIcon size={size} />,
+    "incident-cached": <IncidentIcon size={size} />,
     istio: <IstioIcon size={size} />,
   };
 

@@ -30,6 +30,7 @@ from mcp.client.streamable_http import streamablehttp_client
 from strands import Agent
 from strands_tools import current_time
 from strands.models import BedrockModel
+from strands.models.model import CacheConfig
 from strands.tools.mcp import MCPClient
 import logging
 import os
@@ -62,7 +63,16 @@ class IstioMeshAgent:
             bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', DEFAULT_MODEL_ID)
 
         self.model_id = bedrock_model_id
-        self.model = BedrockModel(model_id=self.model_id)
+        cache_enabled = os.environ.get("ENABLE_PROMPT_CACHE", "false").lower() == "true"
+        cache_kwargs = (
+            {
+                "cache_config": CacheConfig(strategy="auto"),
+                "cache_tools": "default",
+            }
+            if cache_enabled
+            else {}
+        )
+        self.model = BedrockModel(model_id=self.model_id, **cache_kwargs)
         self.memory_hook = memory_hook
 
         self.system_prompt = (
@@ -263,15 +273,45 @@ Istio 메트릭 (AMP 쿼리):
     async def stream(self, user_query: str):
         """Stream agent responses with automatic retry."""
         import asyncio
+        import json as _json
         max_retries = 3
         retry_delay = 2.0
 
         for attempt in range(max_retries):
             try:
                 logger.info(f"Streaming response for query (attempt {attempt + 1})")
+                result = None
+                tools_used = []
                 async for event in self.agent.stream_async(user_query):
                     if "data" in event:
                         yield event["data"]
+                    elif "current_tool_use" in event:
+                        tool_name = event["current_tool_use"].get("name")
+                        if tool_name and tool_name not in tools_used:
+                            tools_used.append(tool_name)
+                    elif "result" in event:
+                        result = event["result"]
+
+                # Emit tools used as a special marker
+                if tools_used:
+                    yield f"__TOOLS_JSON__{_json.dumps(tools_used)}"
+
+                # Emit token usage metrics as a special marker
+                if result and hasattr(result, "metrics") and result.metrics:
+                    usage = getattr(result.metrics, "accumulated_usage", None)
+                    if usage:
+                        metrics_data = {}
+                        for src, dst in [
+                            ("inputTokens", "input_tokens"),
+                            ("outputTokens", "output_tokens"),
+                            ("cacheReadInputTokens", "cache_read_tokens"),
+                            ("cacheWriteInputTokens", "cache_creation_tokens"),
+                        ]:
+                            val = usage.get(src)
+                            if val is not None and val > 0:
+                                metrics_data[dst] = val
+                        if metrics_data:
+                            yield f"__METRICS_JSON__{_json.dumps(metrics_data)}"
                 return
 
             except Exception as e:

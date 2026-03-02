@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { Agent } from "../types";
 
 interface Props {
@@ -6,12 +7,14 @@ interface Props {
 }
 
 export default function HomePage({ agents, onSelectAgent }: Props) {
+  const { t } = useTranslation();
+
   return (
     <div className="home">
       <div className="home-header">
         <span className="home-logo">🤖</span>
-        <h1 className="home-title">NetAIOps Agent Hub</h1>
-        <p className="home-subtitle">AI 기반 클라우드 운영 어시스턴트</p>
+        <h1 className="home-title">{t("app.title")}</h1>
+        <p className="home-subtitle">{t("welcome.subtitle")}</p>
       </div>
 
       <div className="agent-cards">
@@ -22,16 +25,16 @@ export default function HomePage({ agents, onSelectAgent }: Props) {
             onClick={() => onSelectAgent(agent)}
           >
             <span className="agent-card-icon">{agent.icon}</span>
-            <div className="agent-card-name">{agent.name}</div>
-            <div className="agent-card-desc">{agent.description}</div>
+            <div className="agent-card-name">{t(`agents.${agent.id}.name`, { defaultValue: agent.name })}</div>
+            <div className="agent-card-desc">{t(`agents.${agent.id}.description`, { defaultValue: agent.description })}</div>
             <div className="agent-card-arrow">
-              시작하기 →
+              {t("welcome.getStarted")}
             </div>
           </div>
         ))}
       </div>
 
-      <p className="home-hint">에이전트를 선택하여 대화를 시작하세요</p>
+      <p className="home-hint">{t("welcome.hint")}</p>
     </div>
   );
 }

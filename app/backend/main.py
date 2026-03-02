@@ -29,22 +29,27 @@ CHAOS_LAMBDA_NAME = os.environ.get("CHAOS_LAMBDA_NAME", "incident-chaos-tools")
 FAULT_LAMBDA_NAME = os.environ.get("FAULT_LAMBDA_NAME", "istio-fault-injection-tools")
 
 AGENTS = {
-    "k8s": {
-        "id": "k8s",
-        "name": "K8s Diagnostics Agent",
-        "icon": "☸",
-        "description": "EKS 클러스터 진단 에이전트 — 리전을 동적으로 전환하며 분석합니다.",
-        "ssm_prefix": "/a2a/app/k8s/agentcore",
+    "network": {
+        "id": "network",
+        "name": "Network Diagnostics Agent",
+        "icon": "🌐",
+        "description": "AWS 네트워크 진단 에이전트 — VPC, DNS, Flow Logs, NAT Gateway, ELB 분석.",
+        "ssm_prefix": "/app/network/agentcore",
         "config_path": os.environ.get(
-            "K8S_AGENT_CONFIG_PATH",
+            "NETWORK_AGENT_CONFIG_PATH",
             os.path.join(
                 os.path.dirname(__file__), "..", "..",
-                "workshop-module-5", "module-5", "agentcore-k8s-agent",
+                "agents", "network-agent", "agent",
                 ".bedrock_agentcore.yaml",
             ),
         ),
-        "placeholder": "Ask about your EKS clusters...",
-        "scenarios": [],
+        "placeholder": "네트워크 진단 요청을 입력하세요... (예: VPC 서브넷 간 연결 상태를 확인해주세요)",
+        "scenarios": [
+            {"id": "dns", "name": "DNS 진단", "prompt": "Route 53 호스팅 존과 레코드 상태를 확인해주세요. 헬스체크 상태와 DNS 해석 결과도 검증해주세요."},
+            {"id": "vpc", "name": "VPC 구성 분석", "prompt": "현재 리전의 VPC, 서브넷, 라우팅 테이블, 인터넷/NAT 게이트웨이 구성을 분석해주세요. 보안 그룹 규칙도 확인해주세요."},
+            {"id": "flowlogs", "name": "Flow Logs 분석", "prompt": "VPC Flow Logs에서 거부된 트래픽 패턴을 분석해주세요. 가장 많이 차단되는 소스 IP와 포트를 식별해주세요."},
+            {"id": "elb", "name": "로드밸런서 메트릭", "prompt": "현재 리전의 ALB/NLB 상태를 확인해주세요. 응답 시간, 활성 연결 수, 처리 바이트를 분석해주세요."},
+        ],
     },
     "incident": {
         "id": "incident",
@@ -66,6 +71,45 @@ AGENTS = {
             {"id": "error", "name": "에러율 증가", "prompt": "web-api 서비스에서 ERROR 로그(ECONNREFUSED)가 급증하고 있습니다. chaos-error-injection 파드의 영향인지 로그와 메트릭을 분석해주세요."},
             {"id": "latency", "name": "지연 시간 급증", "prompt": "api-gateway 서비스에서 응답 지연(500~1000ms)이 급증하고 있습니다. chaos-latency-injection 파드의 영향인지 컨테이너 상태를 확인해주세요."},
             {"id": "pod", "name": "파드 재시작 반복", "prompt": "EKS 클러스터에서 파드가 반복적으로 재시작(CrashLoopBackOff)되고 있습니다. chaos-pod-crash 파드를 포함하여 진단해주세요."},
+        ],
+    },
+    "incident-cached": {
+        "id": "incident-cached",
+        "name": "Incident Agent (Cached)",
+        "icon": "🔍",
+        "description": "인시던트 분석 에이전트 (Prompt Cache ON) — 캐싱 성능 비교용.",
+        "parentId": "incident",
+        "ssm_prefix": "/app/incident/agentcore",
+        "arn_ssm_key": "/app/incident-cached/agentcore/agent_runtime_arn",
+        "config_path": "",
+        "placeholder": "인시던트 상황을 설명하세요... (캐싱 적용 버전)",
+        "scenarios": [
+            {"id": "cpu", "name": "CPU 급증 분석", "prompt": "EKS 클러스터에서 CPU 사용률이 급증했습니다. chaos-cpu-stress 파드가 배포된 것으로 보입니다. 클러스터 상태와 원인을 분석해주세요."},
+            {"id": "error", "name": "에러율 증가", "prompt": "web-api 서비스에서 ERROR 로그(ECONNREFUSED)가 급증하고 있습니다. chaos-error-injection 파드의 영향인지 로그와 메트릭을 분석해주세요."},
+            {"id": "latency", "name": "지연 시간 급증", "prompt": "api-gateway 서비스에서 응답 지연(500~1000ms)이 급증하고 있습니다. chaos-latency-injection 파드의 영향인지 컨테이너 상태를 확인해주세요."},
+            {"id": "pod", "name": "파드 재시작 반복", "prompt": "EKS 클러스터에서 파드가 반복적으로 재시작(CrashLoopBackOff)되고 있습니다. chaos-pod-crash 파드를 포함하여 진단해주세요."},
+        ],
+    },
+    "k8s": {
+        "id": "k8s",
+        "name": "K8s Diagnostics Agent",
+        "icon": "☸",
+        "description": "EKS 클러스터 진단 에이전트 — 리전을 동적으로 전환하며 분석합니다.",
+        "ssm_prefix": "/a2a/app/k8s/agentcore",
+        "config_path": os.environ.get(
+            "K8S_AGENT_CONFIG_PATH",
+            os.path.join(
+                os.path.dirname(__file__), "..", "..",
+                "workshop-module-5", "module-5", "agentcore-k8s-agent",
+                ".bedrock_agentcore.yaml",
+            ),
+        ),
+        "placeholder": "Ask about your EKS clusters...",
+        "scenarios": [
+            {"id": "health", "name": "클러스터 상태 점검", "prompt": "EKS 클러스터의 전체 상태를 점검해주세요. 노드 상태, 파드 수, 리소스 사용률을 확인하고 이상 징후가 있으면 알려주세요."},
+            {"id": "pods", "name": "비정상 파드 진단", "prompt": "현재 클러스터에서 CrashLoopBackOff, Error, Pending 등 비정상 상태의 파드를 찾아 원인을 진단해주세요."},
+            {"id": "resources", "name": "리소스 사용량 분석", "prompt": "클러스터 노드와 파드의 CPU, 메모리 사용량을 분석해주세요. 리소스 부족이나 과다 할당된 워크로드가 있는지 확인해주세요."},
+            {"id": "workloads", "name": "워크로드 현황", "prompt": "클러스터의 네임스페이스별 Deployment, StatefulSet, DaemonSet 현황을 보여주세요. 레플리카 수와 가용성 상태를 포함해주세요."},
         ],
     },
     "istio": {
@@ -119,6 +163,8 @@ _arn_cache: dict = {}  # agent_id -> arn
 # ---------------------------------------------------------------------------
 _ssm_client = None
 _lambda_client = None
+_ec2_client = None
+_elbv2_client = None
 
 # AWS session: use AWS_PROFILE if set (local dev), otherwise instance role (EC2 deploy)
 AWS_PROFILE = os.environ.get("AWS_PROFILE", "")
@@ -140,6 +186,119 @@ def _get_lambda():
     if _lambda_client is None:
         _lambda_client = _boto_session.client("lambda", region_name=AGENT_REGION)
     return _lambda_client
+
+
+# Per-region client caches
+_ec2_clients: dict = {}
+_elbv2_clients: dict = {}
+
+DASHBOARD_REGIONS = [
+    "us-west-2", "us-east-1",
+    "ap-northeast-1", "ap-northeast-2", "ap-southeast-1",
+    "eu-west-1", "eu-central-1",
+]
+
+
+def _get_ec2(region: str = AGENT_REGION):
+    if region not in _ec2_clients:
+        _ec2_clients[region] = _boto_session.client("ec2", region_name=region)
+    return _ec2_clients[region]
+
+
+def _get_elbv2(region: str = AGENT_REGION):
+    if region not in _elbv2_clients:
+        _elbv2_clients[region] = _boto_session.client("elbv2", region_name=region)
+    return _elbv2_clients[region]
+
+
+# ---------------------------------------------------------------------------
+# Dashboard helpers (AWS resource fetchers with 60s TTL cache per region)
+# ---------------------------------------------------------------------------
+_dashboard_cache: dict = {}  # region -> {"data": {...}, "timestamp": float}
+_DASHBOARD_TTL = 60  # seconds
+
+
+def _get_name_tag(tags: list) -> str:
+    if not tags:
+        return "-"
+    for tag in tags:
+        if tag.get("Key") == "Name":
+            return tag.get("Value", "-")
+    return "-"
+
+
+def _fetch_vpcs(region: str) -> list:
+    try:
+        resp = _get_ec2(region).describe_vpcs()
+        return [
+            {
+                "id": v["VpcId"],
+                "cidr": v.get("CidrBlock", "-"),
+                "name": _get_name_tag(v.get("Tags")),
+                "state": v.get("State", "unknown"),
+            }
+            for v in resp.get("Vpcs", [])
+        ]
+    except Exception:
+        return []
+
+
+def _fetch_ec2_instances(region: str) -> list:
+    try:
+        resp = _get_ec2(region).describe_instances()
+        instances = []
+        for res in resp.get("Reservations", []):
+            for i in res.get("Instances", []):
+                instances.append({
+                    "id": i["InstanceId"],
+                    "type": i.get("InstanceType", "-"),
+                    "state": i.get("State", {}).get("Name", "unknown"),
+                    "name": _get_name_tag(i.get("Tags")),
+                    "private_ip": i.get("PrivateIpAddress", "-"),
+                })
+        return instances
+    except Exception:
+        return []
+
+
+def _fetch_load_balancers(region: str) -> list:
+    try:
+        resp = _get_elbv2(region).describe_load_balancers()
+        return [
+            {
+                "name": lb.get("LoadBalancerName", "-"),
+                "type": lb.get("Type", "-"),
+                "scheme": lb.get("Scheme", "-"),
+                "state": lb.get("State", {}).get("Code", "unknown"),
+                "dns": lb.get("DNSName", "-"),
+            }
+            for lb in resp.get("LoadBalancers", [])
+        ]
+    except Exception:
+        return []
+
+
+def _fetch_nat_gateways(region: str) -> list:
+    try:
+        resp = _get_ec2(region).describe_nat_gateways(
+            Filter=[{"Name": "state", "Values": ["available", "pending", "deleting", "failed"]}]
+        )
+        result = []
+        for ng in resp.get("NatGateways", []):
+            public_ip = "-"
+            for addr in ng.get("NatGatewayAddresses", []):
+                if addr.get("PublicIp"):
+                    public_ip = addr["PublicIp"]
+                    break
+            result.append({
+                "id": ng["NatGatewayId"],
+                "state": ng.get("State", "unknown"),
+                "subnet": ng.get("SubnetId", "-"),
+                "public_ip": public_ip,
+            })
+        return result
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -207,8 +366,9 @@ def get_agent_arn(agent_id: str) -> Optional[str]:
         except Exception:
             pass
 
-    # Fallback to SSM
-    arn = get_ssm_parameter(f"{ssm_prefix}/agent_runtime_arn")
+    # Fallback to SSM (use arn_ssm_key if specified, otherwise default path)
+    arn_key = agent_cfg.get("arn_ssm_key") or f"{ssm_prefix}/agent_runtime_arn"
+    arn = get_ssm_parameter(arn_key)
     if arn:
         _arn_cache[agent_id] = arn
     return arn
@@ -338,14 +498,17 @@ def get_config():
     """Return agent definitions, available models, and region."""
     agents = []
     for aid, acfg in AGENTS.items():
-        agents.append({
+        entry = {
             "id": aid,
             "name": acfg["name"],
             "icon": acfg["icon"],
             "description": acfg["description"],
             "placeholder": acfg["placeholder"],
             "scenarios": acfg["scenarios"],
-        })
+        }
+        if "parentId" in acfg:
+            entry["parentId"] = acfg["parentId"]
+        agents.append(entry)
     return {"agents": agents, "models": MODELS, "region": AGENT_REGION}
 
 
@@ -366,9 +529,54 @@ def chat(req: ChatRequest):
     def event_stream():
         # Flush proxy buffers (CloudFront/nginx typically buffer 4-8KB)
         yield f": {' ' * 4096}\n\n"
+        start_time = time.time()
+        first_chunk_time = None
+        token_metrics = {}
+        tools_used = []
+        metrics_marker = "__METRICS_JSON__"
+        tools_marker = "__TOOLS_JSON__"
         for chunk in invoke_agent(arn, token, req.session_id, req.message, req.model_id):
+            # Check for tools marker from agent
+            if tools_marker in chunk:
+                idx = chunk.index(tools_marker)
+                text_before = chunk[:idx]
+                json_str = chunk[idx + len(tools_marker):]
+                if text_before:
+                    if first_chunk_time is None:
+                        first_chunk_time = time.time()
+                    yield f"data: {json.dumps({'content': text_before})}\n\n"
+                try:
+                    tools_used = json.loads(json_str)
+                except json.JSONDecodeError:
+                    pass
+                continue
+            # Check for token metrics marker from agent
+            if metrics_marker in chunk:
+                idx = chunk.index(metrics_marker)
+                text_before = chunk[:idx]
+                json_str = chunk[idx + len(metrics_marker):]
+                if text_before:
+                    if first_chunk_time is None:
+                        first_chunk_time = time.time()
+                    yield f"data: {json.dumps({'content': text_before})}\n\n"
+                try:
+                    token_metrics = json.loads(json_str)
+                except json.JSONDecodeError:
+                    pass
+                continue
+            if first_chunk_time is None:
+                first_chunk_time = time.time()
             data = json.dumps({"content": chunk})
             yield f"data: {data}\n\n"
+        end_time = time.time()
+        metrics = {
+            "ttfb_ms": round((first_chunk_time - start_time) * 1000) if first_chunk_time else None,
+            "total_ms": round((end_time - start_time) * 1000),
+            **token_metrics,
+        }
+        if tools_used:
+            metrics["tools_used"] = tools_used
+        yield f"data: {json.dumps({'metrics': metrics})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -469,6 +677,32 @@ def fault_cleanup():
 def fault_status():
     """Return currently active fault injections."""
     return {"active": list(_active_faults)}
+
+
+# -- Dashboard endpoint -----------------------------------------------------
+@app.get("/api/dashboard")
+def dashboard(region: str = None):
+    """Return AWS infrastructure overview (VPCs, EC2, LBs, NAT GWs) with 60s per-region cache."""
+    region = region or DASHBOARD_REGIONS[0]
+    if region not in DASHBOARD_REGIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported region: {region}")
+
+    now = time.time()
+    entry = _dashboard_cache.get(region)
+    if entry and (now - entry.get("timestamp", 0)) < _DASHBOARD_TTL:
+        return entry["data"]
+
+    data = {
+        "vpcs": _fetch_vpcs(region),
+        "ec2_instances": _fetch_ec2_instances(region),
+        "load_balancers": _fetch_load_balancers(region),
+        "nat_gateways": _fetch_nat_gateways(region),
+        "region": region,
+        "regions": DASHBOARD_REGIONS,
+        "cached_at": now,
+    }
+    _dashboard_cache[region] = {"data": data, "timestamp": now}
+    return data
 
 
 # -- Static file serving (production build) ---------------------------------

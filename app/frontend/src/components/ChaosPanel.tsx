@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { triggerChaos, cleanupChaos } from "../api";
 
 interface Props {
@@ -7,13 +8,14 @@ interface Props {
 }
 
 const CHAOS_SCENARIOS = [
-  { tool: "chaos-cpu-stress", label: "CPU Stress", icon: "🔥" },
-  { tool: "chaos-error-injection", label: "Error Injection", icon: "💥" },
-  { tool: "chaos-latency-injection", label: "Latency Injection", icon: "🐌" },
-  { tool: "chaos-pod-crash", label: "Pod Crash", icon: "💀" },
+  { tool: "chaos-cpu-stress", key: "chaos.cpuStress", icon: "🔥" },
+  { tool: "chaos-error-injection", key: "chaos.errorInjection", icon: "💥" },
+  { tool: "chaos-latency-injection", key: "chaos.latencyInjection", icon: "🐌" },
+  { tool: "chaos-pod-crash", key: "chaos.podCrash", icon: "💀" },
 ];
 
 export default function ChaosPanel({ activeChaos, onActiveChaosChange }: Props) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -51,13 +53,14 @@ export default function ChaosPanel({ activeChaos, onActiveChaosChange }: Props) 
         className={`chaos-toggle ${activeChaos.length > 0 ? "has-active" : ""}`}
         onClick={() => setExpanded(!expanded)}
       >
-        ⚡ Trigger Incident{activeChaos.length > 0 ? ` (${activeChaos.length})` : ""}
+        ⚡ {t("chaos.trigger")}{activeChaos.length > 0 ? ` (${activeChaos.length})` : ""}
       </button>
 
       <div className={`chaos-panel ${expanded ? "expanded" : ""}`}>
         <div className="chaos-content">
-          <span className="chaos-label">Scenarios:</span>
-          {CHAOS_SCENARIOS.map(({ tool, label, icon }) => {
+          <span className="chaos-label">{t("chaos.scenarios")}</span>
+          {CHAOS_SCENARIOS.map(({ tool, key, icon }) => {
+            const label = t(key);
             const isActive = activeChaos.includes(label);
             return (
               <button
@@ -78,7 +81,7 @@ export default function ChaosPanel({ activeChaos, onActiveChaosChange }: Props) 
               onClick={handleCleanup}
               disabled={loading !== null}
             >
-              🧹 Cleanup All
+              🧹 {t("chaos.cleanupAll")}
               {loading === "cleanup" && " ..."}
             </button>
           )}
