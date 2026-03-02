@@ -58,13 +58,8 @@ cd agents/k8s-agent/prerequisite/eks-mcp-server
 
 이 스크립트는 `awslabs/eks-mcp-server`를 AgentCore 런타임으로 배포하며, 에이전트는 MCP Gateway를 통해 `mcpServer` 타겟으로 접근합니다.
 
-### RBAC 구성
+### EKS MCP Server RBAC
 
-에이전트는 대상 EKS 클러스터에 대한 Kubernetes RBAC 권한이 필요합니다.
+K8s Agent 자체에는 RBAC가 필요하지 않습니다. **EKS MCP Server 런타임의 IAM 역할**이 `aws-auth` ConfigMap을 통해 Kubernetes RBAC 역할에 매핑되어야 합니다. MCP Server는 자체 EKS 접근 구성을 통해 이를 자동으로 처리합니다.
 
-```bash
-# deploy.sh Phase 2를 통해 구성
-./agents/incident-agent/prerequisite/setup-eks-rbac.sh
-```
-
-이 스크립트는 에이전트에게 클러스터 리소스에 대한 읽기 권한을 부여하는 `ClusterRole` 및 `ClusterRoleBinding`을 생성합니다.
+> **참고**: `agents/incident-agent/prerequisite/`의 `setup-eks-rbac.sh` 스크립트는 K8s Agent용이 아니라 **Incident Agent의 Chaos Lambda**용입니다. 이 스크립트는 Chaos Lambda의 IAM 역할에 파드 생성/삭제 및 디플로이먼트 스케일링 권한을 부여합니다.

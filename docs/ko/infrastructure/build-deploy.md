@@ -79,7 +79,7 @@ npx cdk deploy --all --profile <AWS_PROFILE> --require-approval never
 bash agents/incident-agent/prerequisite/setup-eks-rbac.sh
 ```
 
-에이전트에게 EKS 클러스터 접근 권한을 부여하는 Kubernetes RBAC 리소스(`ClusterRole`, `ClusterRoleBinding`)를 생성합니다. Chaos Lambda가 파드에 대해 작업하는 데 필요합니다.
+**Incident Agent의 Chaos Lambda** IAM 역할에 EKS 클러스터 접근 권한을 부여하는 Kubernetes RBAC 리소스(`ClusterRole`, `ClusterRoleBinding`)를 생성합니다. Chaos Lambda가 파드 생성/삭제 및 디플로이먼트 스케일링을 수행하는 데 필요합니다. 에이전트 런타임용이 아닙니다 — 에이전트는 MCP Server를 통해 EKS에 접근합니다.
 
 ### Phase 3: MCP Server 런타임
 

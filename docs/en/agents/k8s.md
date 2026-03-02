@@ -58,13 +58,8 @@ cd agents/k8s-agent/prerequisite/eks-mcp-server
 
 This deploys the `awslabs/eks-mcp-server` as an AgentCore runtime, which the agent accesses through the MCP Gateway as an `mcpServer` target.
 
-### RBAC Configuration
+### EKS MCP Server RBAC
 
-The agent requires Kubernetes RBAC permissions on the target EKS cluster:
+The K8s Agent itself does not need RBAC — the **EKS MCP Server runtime's IAM role** must be mapped to a Kubernetes RBAC role via the `aws-auth` ConfigMap. The MCP Server handles this automatically through its own EKS access configuration.
 
-```bash
-# Configured via deploy.sh Phase 2
-./agents/incident-agent/prerequisite/setup-eks-rbac.sh
-```
-
-This creates a `ClusterRole` and `ClusterRoleBinding` granting the agent read access to cluster resources.
+> **Note**: The `setup-eks-rbac.sh` script in `agents/incident-agent/prerequisite/` is for the **Incident Agent's Chaos Lambda**, not for the K8s Agent. It grants the Chaos Lambda's IAM role permission to create/delete pods and scale deployments.

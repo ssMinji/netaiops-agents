@@ -79,7 +79,7 @@ Deploys:
 bash agents/incident-agent/prerequisite/setup-eks-rbac.sh
 ```
 
-Creates Kubernetes RBAC resources (`ClusterRole`, `ClusterRoleBinding`) granting agent access to the EKS cluster. Required for the Chaos Lambda to operate on pods.
+Creates Kubernetes RBAC resources (`ClusterRole`, `ClusterRoleBinding`) granting the **Incident Agent's Chaos Lambda** IAM role access to the EKS cluster. Required for the Chaos Lambda to create/delete pods and scale deployments. This is not for agent runtimes — they access EKS through the MCP Server.
 
 ### Phase 3: MCP Server Runtimes
 
