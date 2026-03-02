@@ -27,7 +27,6 @@
 ## Infrastructure
 
 - [CDK Infrastructure](infrastructure/README.md)
-- [Build & Deploy](infrastructure/build-deploy.md)
 
 ## Operations
 

@@ -30,7 +30,7 @@ npx cdk deploy --profile netaiops-deploy <StackName>
   - `lib/stacks/{k8s,incident,istio,network}-agent/` — 에이전트별 CDK 스택
   - `agent-src/` — 에이전트 소스 심링크
   - `lambda-src/` — 람다 소스 심링크
-- `deploy.sh` — Phase 1~4 통합 배포 스크립트 (CDK → EKS RBAC → MCP Server → Agent Runtime)
+- `deploy.sh` — 에이전트 전체 배포 스크립트 (CDK 인프라 + MCP Server + Agent Runtime, Web UI 미포함)
 - `docs/` — 기술 문서 (PROMPT-CACHING.md 등)
 
 ## Deploy — AgentCore CLI

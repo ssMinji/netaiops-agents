@@ -575,7 +575,10 @@ def chat(req: ChatRequest):
             **token_metrics,
         }
         if tools_used:
-            metrics["tools_used"] = tools_used
+            # Strip MCP Gateway target prefix (e.g. "DnsTools___dns-resolve" → "dns-resolve")
+            metrics["tools_used"] = [
+                t.split("___", 1)[1] if "___" in t else t for t in tools_used
+            ]
         yield f"data: {json.dumps({'metrics': metrics})}\n\n"
         yield "data: [DONE]\n\n"
 

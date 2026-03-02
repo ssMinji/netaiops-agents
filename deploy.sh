@@ -1,7 +1,11 @@
 #!/bin/bash
 # =============================================================================
-# NetAIOps 통합 배포 스크립트
-# Phase 1 (CDK) + Phase 2 (EKS RBAC) + Phase 3 (EKS MCP Server) + Phase 4 (Agent Runtime)
+# NetAIOps 에이전트 인프라 + 런타임 전체 배포 스크립트
+# Phase 1: CDK (Cognito, IAM, Lambda, SSM)
+# Phase 2: EKS RBAC
+# Phase 3: MCP Server Runtime (agentcore deploy)
+# Phase 4: Agent Runtime (agentcore deploy × 4)
+# 참고: Web UI(netaiops-hub)는 이 스크립트에 포함되지 않음 (별도 배포)
 # =============================================================================
 set -e
 
@@ -14,7 +18,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILE="${AWS_PROFILE:-netaiops-deploy}"
 
 echo -e "${BLUE}================================================${NC}"
-echo -e "${BLUE} NetAIOps 통합 배포${NC}"
+echo -e "${BLUE} NetAIOps 에이전트 전체 배포${NC}"
 echo -e "${BLUE} Profile: ${PROFILE}${NC}"
 echo -e "${BLUE}================================================${NC}"
 
