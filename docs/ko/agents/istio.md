@@ -24,7 +24,10 @@ Kubernetes 오브젝트 검사를 위해 K8s Agent와 공유:
 - `prometheus-query` - PromQL 메트릭 쿼리
 - `prometheus-range-query` - 시간 범위 메트릭 분석
 
-### Fault Injection 도구
+## 직접 호출 Lambda (비 MCP)
+
+**Fault Injection Lambda** (`istio-fault-tools`)는 에이전트의 MCP 도구가 아닙니다. UI의 FaultPanel에서 `/api/fault/*` API를 통해 백엔드가 Lambda를 직접 호출합니다.
+
 - `fault-delay` - 서비스 간 호출에 지연 추가
 - `fault-abort` - HTTP 에러 응답 주입
 - `fault-circuit-breaker` - 서킷 브레이킹 활성화

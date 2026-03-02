@@ -14,7 +14,7 @@ agents/incident-agent/
 
 ## MCP 도구
 
-Incident Agent는 6개의 Lambda 기반 도구 그룹에 접근하는 가장 풍부한 도구셋을 보유하고 있습니다.
+Incident Agent는 MCP Gateway를 통해 3개의 Lambda 기반 도구 그룹에 접근합니다.
 
 ### Datadog 도구
 - `datadog-query-metrics` - 시계열 메트릭 쿼리
@@ -32,15 +32,13 @@ Incident Agent는 6개의 Lambda 기반 도구 그룹에 접근하는 가장 풍
 - `container-insights-node-metrics` - 노드 수준 메트릭
 - `container-insights-cluster-overview` - 클러스터 요약
 
-### 카오스 엔지니어링 도구
-- `chaos-cpu-stress` - CPU 스트레스 주입
-- `chaos-error-inject` - HTTP 에러 주입
-- `chaos-latency-inject` - 지연 주입
-- `chaos-pod-crash` - 파드 종료
+## 직접 호출 Lambda (비 MCP)
 
-### 기타 도구
-- `alarm-trigger` - CloudWatch 알람 통합
-- `github-*` - 배포/커밋 상관 분석
+다음 Lambda 함수들은 에이전트의 MCP 도구가 아닙니다. 백엔드 API 또는 CloudWatch 이벤트에 의해 직접 호출됩니다.
+
+- **Chaos Lambda** (`incident-chaos-tools`) - UI의 ChaosPanel에서 `/api/chaos/*` API를 통해 직접 호출. 카오스 시나리오(CPU 스트레스, 에러 주입, 지연 주입, 파드 크래시) 실행.
+- **Alarm Trigger Lambda** (`incident-alarm-trigger`) - CloudWatch Alarm → SNS에 의해 자동 트리거
+- **GitHub Lambda** (`incident-github-tools`) - 배포/커밋 상관 분석
 
 ## 시나리오
 

@@ -37,7 +37,9 @@ Any AgentCore-based agent project follows this deployment sequence regardless of
 
 **Key insight**: CDK/CloudFormation cannot manage AgentCore-specific resources (Gateway, Runtime, Credential Provider). These require the AgentCore CLI or boto3 API. Plan your deployment pipeline to handle both IaC and CLI steps.
 
-## CDK Build
+## Standalone CDK Build/Deploy
+
+Use this when building or deploying CDK stacks individually without `deploy.sh`. If you run `deploy.sh`, Phase 1 performs this step automatically — no need to run it separately.
 
 ```bash
 cd infra-cdk

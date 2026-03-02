@@ -14,7 +14,7 @@ agents/incident-agent/
 
 ## MCP Tools
 
-The Incident Agent has the richest toolset, accessing 6 Lambda-based tool groups:
+The Incident Agent accesses 3 Lambda-based tool groups through the MCP Gateway:
 
 ### Datadog Tools
 - `datadog-query-metrics` - Query time-series metrics
@@ -32,15 +32,13 @@ The Incident Agent has the richest toolset, accessing 6 Lambda-based tool groups
 - `container-insights-node-metrics` - Node-level metrics
 - `container-insights-cluster-overview` - Cluster summary
 
-### Chaos Engineering Tools
-- `chaos-cpu-stress` - CPU stress injection
-- `chaos-error-inject` - HTTP error injection
-- `chaos-latency-inject` - Latency injection
-- `chaos-pod-crash` - Pod termination
+## Direct-Invoked Lambdas (Non-MCP)
 
-### Other Tools
-- `alarm-trigger` - CloudWatch alarm integration
-- `github-*` - Deployment/commit correlation
+The following Lambda functions are not agent MCP tools. They are invoked directly by the backend API or CloudWatch events.
+
+- **Chaos Lambda** (`incident-chaos-tools`) — Invoked directly from the UI's ChaosPanel via `/api/chaos/*` API. Executes chaos scenarios (CPU stress, error injection, latency injection, pod crash).
+- **Alarm Trigger Lambda** (`incident-alarm-trigger`) — Auto-triggered by CloudWatch Alarm → SNS
+- **GitHub Lambda** (`incident-github-tools`) — Deployment/commit correlation
 
 ## Scenarios
 

@@ -24,7 +24,10 @@ Shared with the K8s Agent for Kubernetes object inspection:
 - `prometheus-query` - PromQL metrics queries
 - `prometheus-range-query` - Time-range metric analysis
 
-### Fault Injection Tools
+## Direct-Invoked Lambda (Non-MCP)
+
+The **Fault Injection Lambda** (`istio-fault-tools`) is not an agent MCP tool. The backend invokes the Lambda directly from the UI's FaultPanel via `/api/fault/*` API.
+
 - `fault-delay` - Add latency to service-to-service calls
 - `fault-abort` - Inject HTTP error responses
 - `fault-circuit-breaker` - Enable circuit breaking
