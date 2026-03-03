@@ -6,7 +6,7 @@ NetAIOps follows a layered architecture where a React frontend communicates with
 
 ## Full System Diagram
 
-![Full Architecture](../../full-architecture.png)
+![Full Architecture](../../architecture-overview.png)
 
 ## Streaming Protocol
 

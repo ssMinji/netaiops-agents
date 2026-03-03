@@ -6,7 +6,7 @@ NetAIOps는 계층형 아키텍처를 따릅니다. React 프론트엔드가 Fas
 
 ## 전체 시스템 다이어그램
 
-![전체 아키텍처](../../full-architecture.png)
+![전체 아키텍처](../../architecture-overview.png)
 
 ## 스트리밍 프로토콜
 

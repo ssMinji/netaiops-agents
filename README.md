@@ -4,7 +4,7 @@ AWS Bedrock AgentCore 기반 AI 네트워크/인프라 운영 에이전트
 
 ## 아키텍처
 
-![NetAIOps 전체 아키텍처](docs/full-architecture.png)
+![NetAIOps 전체 아키텍처](docs/architecture-overview.png)
 
 ## 에이전트
 

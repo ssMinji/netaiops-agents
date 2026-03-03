@@ -17,7 +17,7 @@ NetAIOps(Network AI Operations)는 AI 에이전트를 통해 자율적인 인프
 
 ## 아키텍처 개요
 
-![아키텍처 개요](../full-architecture.png)
+![아키텍처 개요](../architecture-overview.png)
 
 ## 기술 스택
 

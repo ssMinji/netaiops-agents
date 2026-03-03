@@ -17,7 +17,7 @@ NetAIOps (Network AI Operations) is a multi-agent system that provides autonomou
 
 ## Architecture Overview
 
-![Architecture Overview](../full-architecture.png)
+![Architecture Overview](../architecture-overview.png)
 
 ## Tech Stack
 
