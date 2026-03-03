@@ -8,57 +8,72 @@ AWS Bedrock AgentCore 기반 AI 네트워크/인프라 운영 에이전트
 
 ## 에이전트
 
-### k8s-agent
-EKS 클러스터 진단 에이전트. MCP Gateway를 통한 Kubernetes 리소스 관리, Pod 트러블슈팅, CloudWatch 메트릭 조회, VPC 네트워킹 분석을 수행합니다.
-
-### incident-agent
-자동화된 장애 조사 에이전트. 다중 옵저버빌리티 소스(Datadog, OpenSearch, Container Insights) 통합으로 근본 원인을 분석하고, GitHub 이슈를 생성하며, 알려진 장애 시나리오를 자동 복구합니다.
-
-### istio-agent
-Istio 서비스 메시 진단 에이전트. 트래픽 관리, Fault Injection 분석, Prometheus 메트릭 상관 분석을 수행합니다.
+| 에이전트 | 도메인 | MCP 도구 | 설명 |
+|---------|--------|----------|------|
+| **K8s Agent** | Kubernetes/EKS | EKS MCP Server | EKS 클러스터 진단, Pod 트러블슈팅, 리소스 관리 |
+| **Incident Agent** | 장애 분석 | Datadog, OpenSearch, Container Insights | 다중 소스 장애 조사, 근본 원인 분석, GitHub 이슈 자동 생성 |
+| **Istio Agent** | 서비스 메시 | EKS MCP Server, Prometheus | 트래픽 관리, 메트릭 상관 분석, 서비스 메시 진단 |
+| **Network Agent** | AWS 네트워킹 | Network MCP Server, DNS, CloudWatch | VPC/서브넷 분석, DNS 진단, 네트워크 메트릭 조회 |
 
 ## 프로젝트 구조
 
 ```
 netaiops-agent/
-├── app/                    # React + Flask 통합 UI
-├── docs/                   # 아키텍처 및 배포 문서
-├── infra-cdk/              # CDK 인프라
-├── sample-workloads/       # 테스트 워크로드
-│   ├── retail-store/       #   EKS Retail Store 샘플 앱
-│   └── istio-sample/       #   Istio Bookinfo 샘플 앱
-└── agents/
-    ├── k8s-agent/          # K8s 진단 에이전트
-    │   ├── agent/          #   에이전트 소스코드
-    │   └── prerequisite/   #   EKS MCP Server + Cognito 설정
-    ├── incident-agent/     # 장애 분석 에이전트
-    │   ├── agent/          #   에이전트 소스코드
-    │   └── prerequisite/   #   Lambda 함수 + Cognito 설정
-    └── istio-agent/        # Istio 메시 에이전트
-        ├── agent/          #   에이전트 소스코드
-        └── prerequisite/   #   Lambda 함수 + Cognito 설정
+├── agents/
+│   ├── k8s-agent/          # K8s 진단 에이전트
+│   │   ├── agent/          #   에이전트 소스코드
+│   │   └── prerequisite/   #   EKS MCP Server 설정
+│   ├── incident-agent/     # 장애 분석 에이전트
+│   │   ├── agent/          #   에이전트 소스코드
+│   │   ├── agent-cached/   #   프롬프트 캐싱 적용 버전
+│   │   └── prerequisite/   #   Lambda 함수 + 알람 설정
+│   ├── istio-agent/        # Istio 메시 에이전트
+│   │   ├── agent/          #   에이전트 소스코드
+│   │   └── prerequisite/   #   Lambda 함수 설정
+│   └── network-agent/      # 네트워크 진단 에이전트
+│       ├── agent/          #   에이전트 소스코드
+│       └── prerequisite/   #   Network MCP Server 설정
+├── app/
+│   ├── backend/            # FastAPI 백엔드 (API + static 서빙)
+│   └── frontend/           # React 프론트엔드 (Vite + TypeScript)
+├── infra-cdk/              # CDK 인프라 (Cognito, IAM, Lambda, SSM)
+├── sample-workloads/
+│   ├── retail-store/       # EKS Retail Store 샘플 앱
+│   └── istio-sample/       # Istio Bookinfo 샘플 앱
+├── docs/                   # 기술 문서 (GitBook, ko/en)
+└── deploy.sh               # 통합 배포 스크립트 (Phase 1~4)
 ```
 
 ## 사전 요구 사항
 
-- Bedrock AgentCore 접근 가능한 AWS 계정
-- EKS 클러스터 (`sample-workloads/retail-store/` 참조)
-- 에이전트별 Cognito User Pool (`agents/*/prerequisite/` 참조)
-- 에이전트 설정을 위한 SSM Parameter Store 항목
+- AWS CLI + 프로필 설정
+- Node.js 18+ (CDK)
+- Python 3.12+ (에이전트)
+- AgentCore CLI (`agentcore`)
+- Docker (Lambda 이미지 빌드)
+- `kubectl` (EKS RBAC 설정)
 
-## 샘플 워크로드
+## 배포
 
-에이전트의 진단/모니터링 대상이 되는 워크로드입니다.
+```bash
+# 전체 배포 (CDK → EKS RBAC → MCP Server → Agent Runtime)
+./deploy.sh
+```
 
-| 워크로드 | 설명 | 필수 에이전트 |
-|---------|------|-------------|
-| [retail-store](sample-workloads/retail-store/) | EKS Retail Store 마이크로서비스 앱 | K8s Agent, Incident Agent (권장) |
-| [istio-sample](sample-workloads/istio-sample/) | Istio Bookinfo 샘플 앱 | Istio Agent (필수) |
+자세한 배포 절차는 [배포 가이드](docs/ko/deployment/README.md)를 참조하세요.
 
 ## 문서
 
 | 문서 | 설명 |
 |------|------|
-| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | 전체 배포 가이드 (EKS, 에이전트, Istio) |
-| [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 시스템 아키텍처 상세 |
-| [COGNITO.md](docs/COGNITO.md) | Cognito User Pool 및 인증 흐름 |
+| [아키텍처](docs/ko/architecture/README.md) | 시스템 아키텍처 상세 |
+| [에이전트](docs/ko/agents/README.md) | 에이전트별 구성 및 도구 |
+| [배포 가이드](docs/ko/deployment/README.md) | 전체 배포 절차 |
+| [English Docs](docs/en/) | English documentation |
+
+## 샘플 워크로드
+
+| 워크로드 | 설명 | 사용 에이전트 |
+|---------|------|-------------|
+| [retail-store](sample-workloads/retail-store/) | EKS Retail Store 마이크로서비스 앱 | K8s Agent, Incident Agent |
+| [istio-sample](sample-workloads/istio-sample/) | Istio Bookinfo 샘플 앱 | Istio Agent |
