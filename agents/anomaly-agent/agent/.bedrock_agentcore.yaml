@@ -1,0 +1,66 @@
+default_agent: anomaly_detection_agent_runtime
+agents:
+  anomaly_detection_agent_runtime:
+    name: anomaly_detection_agent_runtime
+    language: python
+    node_version: null
+    entrypoint: main.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: docker
+    source_path: null
+    aws:
+      execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKRuntime-us-east-1-94f33bdf66
+      execution_role_auto_create: false
+      account: '175678592674'
+      region: us-east-1
+      ecr_repository: 175678592674.dkr.ecr.us-east-1.amazonaws.com/bedrock-agentcore-anomaly_detection_agent_runtime
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: anomaly_detection_agent_runtime-Zi9saQ43Nt
+      agent_arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:runtime/anomaly_detection_agent_runtime-Zi9saQ43Nt
+      agent_session_id: null
+    codebuild:
+      project_name: bedrock-agentcore-anomaly_detection_agent_runtime-builder
+      execution_role: arn:aws:iam::175678592674:role/AmazonBedrockAgentCoreSDKCodeBuild-us-east-1-94f33bdf66
+      source_bucket: bedrock-agentcore-codebuild-sources-175678592674-us-east-1
+    memory:
+      mode: NO_MEMORY
+      memory_id: null
+      memory_arn: null
+      memory_name: null
+      event_expiry_days: 30
+      first_invoke_memory_check_done: false
+      was_created_by_toolkit: false
+    identity:
+      credential_providers:
+      - name: anomaly-gateway-oauth
+        arn: arn:aws:bedrock-agentcore:us-east-1:175678592674:token-vault/default/oauth2credentialprovider/anomaly-gateway-oauth
+        type: cognito
+        callback_url: https://bedrock-agentcore.us-east-1.amazonaws.com/identities/oauth2/callback/fb7a5266-05e4-4bc5-9830-e1d32e465ef0
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false
