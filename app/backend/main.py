@@ -6,16 +6,18 @@ Ported from the Streamlit frontend.
 """
 
 import json
+import logging
 import os
 import time
 import uuid
 import urllib.parse
+from datetime import datetime, timezone
 from typing import Optional
 
 import boto3
 import requests as http_requests
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -88,6 +90,28 @@ AGENTS = {
             {"id": "error", "name": "에러율 증가", "prompt": "web-api 서비스에서 ERROR 로그(ECONNREFUSED)가 급증하고 있습니다. chaos-error-injection 파드의 영향인지 로그와 메트릭을 분석해주세요."},
             {"id": "latency", "name": "지연 시간 급증", "prompt": "api-gateway 서비스에서 응답 지연(500~1000ms)이 급증하고 있습니다. chaos-latency-injection 파드의 영향인지 컨테이너 상태를 확인해주세요."},
             {"id": "pod", "name": "파드 재시작 반복", "prompt": "EKS 클러스터에서 파드가 반복적으로 재시작(CrashLoopBackOff)되고 있습니다. chaos-pod-crash 파드를 포함하여 진단해주세요."},
+        ],
+    },
+    "anomaly": {
+        "id": "anomaly",
+        "name": "Anomaly Detection Agent",
+        "icon": "📊",
+        "description": "네트워크 이상 탐지 에이전트 — CloudWatch ML 이상탐지, VPC Flow Logs, Inter-AZ 트래픽, ELB shift 분석.",
+        "ssm_prefix": "/app/anomaly/agentcore",
+        "config_path": os.environ.get(
+            "ANOMALY_AGENT_CONFIG_PATH",
+            os.path.join(
+                os.path.dirname(__file__), "..", "..",
+                "agents", "anomaly-agent", "agent",
+                ".bedrock_agentcore.yaml",
+            ),
+        ),
+        "placeholder": "이상 탐지 요청을 입력하세요... (예: VPC Flow Logs에서 비정상 트래픽 패턴을 분석해주세요)",
+        "scenarios": [
+            {"id": "metric-anomaly", "name": "메트릭 이상 탐지", "prompt": "CloudWatch 이상탐지 알람 상태를 확인하고, 주요 EC2/ELB 메트릭의 이상탐지 밴드 이탈 여부를 분석해주세요."},
+            {"id": "flowlog", "name": "Flow Log 분석", "prompt": "VPC Flow Logs에서 거부 트래픽 급증, 포트 스캔 패턴, 트래픽 볼륨 이상을 분석해주세요. 상위 통신자(top talker)도 식별해주세요. Flow Logs log group은 /vpc/netaiops-prod-flow-logs (Production VPC 10.1.0.0/16), /vpc/netaiops-staging-flow-logs (Staging VPC 10.2.0.0/16), /vpc/netaiops-shared-flow-logs (Shared Services VPC 10.0.0.0/16) 입니다. us-west-2 리전입니다."},
+            {"id": "interaz", "name": "Inter-AZ 트래픽", "prompt": "VPC Flow Logs를 분석하여 Cross-AZ vs Intra-AZ 트래픽 비율을 확인해주세요. 상위 Cross-AZ 통신 쌍과 예상 데이터 전송 비용을 알려주세요. Flow Logs log group은 /vpc/netaiops-prod-flow-logs (Production VPC, us-west-2) 입니다."},
+            {"id": "elb-shift", "name": "ELB 변화 감지", "prompt": "현재 리전의 ALB/NLB 메트릭을 기준 기간 대비 분석하여 급격한 변화가 감지되는 항목을 식별해주세요. Target health 상태도 확인해주세요."},
         ],
     },
     "k8s": {
@@ -198,6 +222,8 @@ DASHBOARD_REGIONS = [
     "eu-west-1", "eu-central-1",
 ]
 
+_cw_clients: dict = {}
+
 
 def _get_ec2(region: str = AGENT_REGION):
     if region not in _ec2_clients:
@@ -211,11 +237,20 @@ def _get_elbv2(region: str = AGENT_REGION):
     return _elbv2_clients[region]
 
 
+def _get_cloudwatch(region: str = AGENT_REGION):
+    if region not in _cw_clients:
+        _cw_clients[region] = _boto_session.client("cloudwatch", region_name=region)
+    return _cw_clients[region]
+
+
 # ---------------------------------------------------------------------------
 # Dashboard helpers (AWS resource fetchers with 60s TTL cache per region)
 # ---------------------------------------------------------------------------
 _dashboard_cache: dict = {}  # region -> {"data": {...}, "timestamp": float}
 _DASHBOARD_TTL = 60  # seconds
+
+_metrics_cache: dict = {}
+_METRICS_TTL = 120
 
 
 def _get_name_tag(tags: list) -> str:
@@ -392,6 +427,10 @@ def ensure_token(agent_id: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 def invoke_agent(agent_arn: str, token: str, session_id: str, prompt: str, model_id: str = None):
     """Invoke AgentCore runtime and yield streamed text chunks."""
+    # AgentCore requires session ID >= 33 chars
+    if len(session_id) < 33:
+        session_id = session_id + "-" + uuid.uuid4().hex[:33]
+        session_id = session_id[:64]
     escaped_arn = urllib.parse.quote(agent_arn, safe="")
     url = (
         f"https://bedrock-agentcore.{AGENT_REGION}.amazonaws.com"
@@ -484,6 +523,10 @@ class ChatRequest(BaseModel):
     model_id: str = None
 
 
+class LoginRequest(BaseModel):
+    alias: str
+
+
 class ChaosRequest(BaseModel):
     scenario: str
 
@@ -496,8 +539,11 @@ class FaultRequest(BaseModel):
 @app.get("/api/config")
 def get_config():
     """Return agent definitions, available models, and region."""
+    hidden = {"incident-cached"}
     agents = []
     for aid, acfg in AGENTS.items():
+        if aid in hidden:
+            continue
         entry = {
             "id": aid,
             "name": acfg["name"],
@@ -510,6 +556,48 @@ def get_config():
             entry["parentId"] = acfg["parentId"]
         agents.append(entry)
     return {"agents": agents, "models": MODELS, "region": AGENT_REGION}
+
+
+ACCESS_LOG_PATH = os.environ.get("ACCESS_LOG_PATH", "/tmp/access_log.jsonl")
+_access_logger = logging.getLogger("access_log")
+_access_logger.setLevel(logging.INFO)
+if not _access_logger.handlers:
+    _access_logger.addHandler(logging.StreamHandler())
+
+
+@app.post("/api/login")
+def login(req: LoginRequest, request: Request):
+    """Record user alias login."""
+    alias = req.alias.strip()
+    if not alias:
+        raise HTTPException(status_code=400, detail="Alias is required")
+    entry = {
+        "alias": alias,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "ip": request.client.host if request.client else "unknown",
+    }
+    _access_logger.info("Login: %s from %s", alias, entry["ip"])
+    try:
+        with open(ACCESS_LOG_PATH, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+@app.get("/api/access-log")
+def access_log():
+    """Return last 100 access log entries."""
+    entries = []
+    try:
+        with open(ACCESS_LOG_PATH, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    entries.append(json.loads(line))
+    except FileNotFoundError:
+        pass
+    return {"entries": entries[-100:]}
 
 
 @app.post("/api/chat")
@@ -705,6 +793,317 @@ def dashboard(region: str = None):
         "cached_at": now,
     }
     _dashboard_cache[region] = {"data": data, "timestamp": now}
+    return data
+
+
+# -- Dashboard Metrics endpoint ----------------------------------------------
+def _fetch_metrics(region: str) -> dict:
+    """Fetch CloudWatch network metrics for the dashboard (3h window, 5min period)."""
+    from datetime import timedelta
+
+    cw = _get_cloudwatch(region)
+    ec2 = _get_ec2(region)
+    elbv2 = _get_elbv2(region)
+
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(hours=3)
+    period = 300
+
+    queries = []
+    query_idx = 0
+
+    # --- EC2 aggregate traffic (SEARCH expressions) ---
+    queries.append({
+        "Id": "ec2_net_in",
+        "Expression": "SEARCH('{AWS/EC2,InstanceId} NetworkIn', 'Sum', 300)",
+        "ReturnData": False,
+    })
+    queries.append({
+        "Id": "ec2_net_in_sum",
+        "Expression": "SUM(ec2_net_in)",
+        "Label": "NetworkIn",
+    })
+    queries.append({
+        "Id": "ec2_net_out",
+        "Expression": "SEARCH('{AWS/EC2,InstanceId} NetworkOut', 'Sum', 300)",
+        "ReturnData": False,
+    })
+    queries.append({
+        "Id": "ec2_net_out_sum",
+        "Expression": "SUM(ec2_net_out)",
+        "Label": "NetworkOut",
+    })
+
+    # --- Discover LBs ---
+    lbs = []
+    try:
+        resp = elbv2.describe_load_balancers()
+        for lb in resp.get("LoadBalancers", []):
+            # Extract the short ARN suffix for ALB dimension
+            arn = lb.get("LoadBalancerArn", "")
+            # Dimension value is "app/name/id" or "net/name/id"
+            parts = arn.split("loadbalancer/", 1)
+            dim_value = parts[1] if len(parts) == 2 else ""
+            lbs.append({
+                "name": lb.get("LoadBalancerName", ""),
+                "type": lb.get("Type", "application"),
+                "dim": dim_value,
+            })
+    except Exception:
+        pass
+
+    for i, lb in enumerate(lbs):
+        is_nlb = lb["type"] == "network"
+        ns = "AWS/NetworkELB" if is_nlb else "AWS/ApplicationELB"
+        dim = lb["dim"]
+
+        if is_nlb:
+            queries.append({
+                "Id": f"lb{i}_flows",
+                "MetricStat": {
+                    "Metric": {"Namespace": ns, "MetricName": "ActiveFlowCount",
+                               "Dimensions": [{"Name": "LoadBalancer", "Value": dim}]},
+                    "Period": period, "Stat": "Sum",
+                },
+            })
+            queries.append({
+                "Id": f"lb{i}_tcp_reset",
+                "MetricStat": {
+                    "Metric": {"Namespace": ns, "MetricName": "TCP_Target_Reset_Count",
+                               "Dimensions": [{"Name": "LoadBalancer", "Value": dim}]},
+                    "Period": period, "Stat": "Sum",
+                },
+            })
+        else:
+            queries.append({
+                "Id": f"lb{i}_requests",
+                "MetricStat": {
+                    "Metric": {"Namespace": ns, "MetricName": "RequestCount",
+                               "Dimensions": [{"Name": "LoadBalancer", "Value": dim}]},
+                    "Period": period, "Stat": "Sum",
+                },
+            })
+            queries.append({
+                "Id": f"lb{i}_latency",
+                "MetricStat": {
+                    "Metric": {"Namespace": ns, "MetricName": "TargetResponseTime",
+                               "Dimensions": [{"Name": "LoadBalancer", "Value": dim}]},
+                    "Period": period, "Stat": "Average",
+                },
+            })
+            queries.append({
+                "Id": f"lb{i}_2xx",
+                "MetricStat": {
+                    "Metric": {"Namespace": ns, "MetricName": "HTTPCode_Target_2XX_Count",
+                               "Dimensions": [{"Name": "LoadBalancer", "Value": dim}]},
+                    "Period": period, "Stat": "Sum",
+                },
+            })
+            queries.append({
+                "Id": f"lb{i}_5xx",
+                "MetricStat": {
+                    "Metric": {"Namespace": ns, "MetricName": "HTTPCode_Target_5XX_Count",
+                               "Dimensions": [{"Name": "LoadBalancer", "Value": dim}]},
+                    "Period": period, "Stat": "Sum",
+                },
+            })
+
+    # --- Discover NAT Gateways ---
+    nats = []
+    try:
+        resp = ec2.describe_nat_gateways(
+            Filter=[{"Name": "state", "Values": ["available"]}]
+        )
+        for ng in resp.get("NatGateways", []):
+            nats.append({
+                "id": ng["NatGatewayId"],
+                "name": _get_name_tag(ng.get("Tags")),
+            })
+    except Exception:
+        pass
+
+    for i, nat in enumerate(nats):
+        queries.append({
+            "Id": f"nat{i}_conns",
+            "MetricStat": {
+                "Metric": {"Namespace": "AWS/NATGateway", "MetricName": "ActiveConnectionCount",
+                           "Dimensions": [{"Name": "NatGatewayId", "Value": nat["id"]}]},
+                "Period": period, "Stat": "Sum",
+            },
+        })
+        queries.append({
+            "Id": f"nat{i}_bytes",
+            "MetricStat": {
+                "Metric": {"Namespace": "AWS/NATGateway", "MetricName": "BytesOutToDestination",
+                           "Dimensions": [{"Name": "NatGatewayId", "Value": nat["id"]}]},
+                "Period": period, "Stat": "Sum",
+            },
+        })
+
+    # --- Discover Transit Gateway Attachments ---
+    tgw_id = None
+    tgw_attachments = []
+    try:
+        resp = ec2.describe_transit_gateway_attachments(
+            Filters=[{"Name": "state", "Values": ["available"]}]
+        )
+        for att in resp.get("TransitGatewayAttachments", []):
+            if not tgw_id:
+                tgw_id = att.get("TransitGatewayId")
+            tgw_attachments.append({
+                "id": att["TransitGatewayAttachmentId"],
+                "tgw_id": att.get("TransitGatewayId", ""),
+                "name": _get_name_tag(att.get("Tags")),
+            })
+    except Exception:
+        pass
+
+    for i, att in enumerate(tgw_attachments):
+        tgw_dims = [
+            {"Name": "TransitGatewayAttachment", "Value": att["id"]},
+            {"Name": "TransitGateway", "Value": att["tgw_id"]},
+        ]
+        queries.append({
+            "Id": f"tgw{i}_in",
+            "MetricStat": {
+                "Metric": {"Namespace": "AWS/TransitGateway", "MetricName": "BytesIn",
+                           "Dimensions": tgw_dims},
+                "Period": period, "Stat": "Sum",
+            },
+        })
+        queries.append({
+            "Id": f"tgw{i}_out",
+            "MetricStat": {
+                "Metric": {"Namespace": "AWS/TransitGateway", "MetricName": "BytesOut",
+                           "Dimensions": tgw_dims},
+                "Period": period, "Stat": "Sum",
+            },
+        })
+
+    # --- Execute batch query ---
+    results = {}
+    if queries:
+        try:
+            paginator = cw.get_paginator("get_metric_data")
+            for page in paginator.paginate(
+                MetricDataQueries=queries,
+                StartTime=start,
+                EndTime=end,
+                ScanBy="TimestampAscending",
+            ):
+                for r in page.get("MetricDataResults", []):
+                    results[r["Id"]] = {
+                        "timestamps": [t.isoformat() for t in r.get("Timestamps", [])],
+                        "values": [round(v, 4) for v in r.get("Values", [])],
+                    }
+        except Exception as e:
+            logging.warning("CloudWatch get_metric_data failed: %s", e)
+
+    # --- Build response ---
+    def _ts(key):
+        return results.get(key, {}).get("timestamps", [])
+
+    def _vals(key):
+        return results.get(key, {}).get("values", [])
+
+    # EC2 traffic
+    ec2_traffic = {
+        "timestamps": _ts("ec2_net_in_sum"),
+        "network_in_bytes": _vals("ec2_net_in_sum"),
+        "network_out_bytes": _vals("ec2_net_out_sum"),
+    }
+
+    # Discover VPC Flow Log groups
+    flow_log_groups = []
+    try:
+        logs = _boto_session.client("logs", region_name=region)
+        resp = logs.describe_log_groups(logGroupNamePrefix="/vpc/")
+        flow_log_groups = [lg["logGroupName"] for lg in resp.get("logGroups", [])]
+    except Exception:
+        pass
+
+    # ALB/NLB performance
+    lb_performance = []
+    for i, lb in enumerate(lbs):
+        is_nlb = lb["type"] == "network"
+        if is_nlb:
+            lb_performance.append({
+                "name": lb["name"],
+                "type": "network",
+                "arn_suffix": lb["dim"],
+                "timestamps": _ts(f"lb{i}_flows"),
+                "request_count": _vals(f"lb{i}_flows"),
+                "response_time_ms": _vals(f"lb{i}_tcp_reset"),
+                "http_2xx": [],
+                "http_5xx": [],
+            })
+        else:
+            # Convert latency seconds to ms
+            latency_ms = [round(v * 1000, 2) for v in _vals(f"lb{i}_latency")]
+            lb_performance.append({
+                "name": lb["name"],
+                "type": "application",
+                "arn_suffix": lb["dim"],
+                "timestamps": _ts(f"lb{i}_requests"),
+                "request_count": _vals(f"lb{i}_requests"),
+                "response_time_ms": latency_ms,
+                "http_2xx": _vals(f"lb{i}_2xx"),
+                "http_5xx": _vals(f"lb{i}_5xx"),
+            })
+
+    # NAT Gateways
+    nat_gateways = []
+    for i, nat in enumerate(nats):
+        nat_gateways.append({
+            "id": nat["id"],
+            "name": nat["name"],
+            "timestamps": _ts(f"nat{i}_conns"),
+            "active_connections": _vals(f"nat{i}_conns"),
+            "bytes_out": _vals(f"nat{i}_bytes"),
+        })
+
+    # Transit Gateway
+    tgw_att_data = []
+    for i, att in enumerate(tgw_attachments):
+        tgw_att_data.append({
+            "id": att["id"],
+            "name": att["name"],
+            "timestamps": _ts(f"tgw{i}_in"),
+            "bytes_in": _vals(f"tgw{i}_in"),
+            "bytes_out": _vals(f"tgw{i}_out"),
+        })
+
+    return {
+        "region": region,
+        "time_range": {
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "period_seconds": period,
+        },
+        "ec2_traffic": ec2_traffic,
+        "alb_performance": lb_performance,
+        "nat_gateways": nat_gateways,
+        "transit_gateway": {
+            "tgw_id": tgw_id or "",
+            "attachments": tgw_att_data,
+        },
+        "flow_log_groups": flow_log_groups,
+        "cached_at": time.time(),
+    }
+
+
+@app.get("/api/dashboard/metrics")
+def dashboard_metrics(region: str = None):
+    """CloudWatch network metrics (120s cache)."""
+    region = region or DASHBOARD_REGIONS[0]
+    if region not in DASHBOARD_REGIONS:
+        raise HTTPException(status_code=400, detail=f"Unsupported region: {region}")
+    now = time.time()
+    entry = _metrics_cache.get(region)
+    if entry and (now - entry.get("timestamp", 0)) < _METRICS_TTL:
+        return entry["data"]
+    data = _fetch_metrics(region)
+    _metrics_cache[region] = {"data": data, "timestamp": now}
     return data
 
 

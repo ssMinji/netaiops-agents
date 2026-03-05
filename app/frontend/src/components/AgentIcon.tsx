@@ -52,6 +52,22 @@ function IstioIcon({ size }: { size: number }) {
   );
 }
 
+function AnomalyIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      {/* Chart baseline */}
+      <line x1="3" y1="20" x2="21" y2="20" />
+      <line x1="3" y1="20" x2="3" y2="4" />
+      {/* Normal trend line */}
+      <polyline points="5 16 8 14 11 15 14 13 17 14 20 12" opacity="0.3" />
+      {/* Anomaly spike */}
+      <polyline points="5 16 8 14 11 15 13 6 14 13 17 14 20 12" />
+      {/* Alert dot on spike */}
+      <circle cx="13" cy="6" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function DashboardIcon({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
@@ -78,6 +94,7 @@ export default function AgentIcon({ agentId, size = 20, className }: Props) {
     incident: <IncidentIcon size={size} />,
     "incident-cached": <IncidentIcon size={size} />,
     istio: <IstioIcon size={size} />,
+    anomaly: <AnomalyIcon size={size} />,
   };
 
   return (

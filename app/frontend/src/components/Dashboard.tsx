@@ -2,15 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { fetchDashboard } from "../api";
 import type { DashboardData } from "../types";
-
-function StateBadge({ state }: { state: string }) {
-  const s = state.toLowerCase();
-  let cls = "state-badge";
-  if (s === "running" || s === "available" || s === "active") cls += " state-ok";
-  else if (s === "stopped" || s === "failed" || s === "deleted" || s === "terminated") cls += " state-error";
-  else if (s === "pending" || s === "deleting" || s === "shutting-down" || s === "stopping") cls += " state-warn";
-  return <span className={cls}>{state}</span>;
-}
+import NetworkMetrics from "./NetworkMetrics";
+import AnomalyReport from "./AnomalyReport";
 
 /* Summary card icons */
 function VpcCardIcon() {
@@ -48,19 +41,13 @@ function NatCardIcon() {
   );
 }
 
-function EmptyState({ label }: { label: string }) {
-  return (
-    <div className="dashboard-empty">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" opacity={0.25}>
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <line x1="9" y1="9" x2="15" y2="15" /><line x1="15" y1="9" x2="9" y2="15" />
-      </svg>
-      <span>{label}</span>
-    </div>
-  );
+
+interface DashboardProps {
+  onNavigateToAgent?: (agentId: string) => void;
+  modelId?: string;
 }
 
-export default function Dashboard() {
+export default function Dashboard({ onNavigateToAgent, modelId }: DashboardProps) {
   const { t } = useTranslation();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -197,135 +184,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Detail Tables */}
-      <div className="dashboard-details">
-        {/* VPCs */}
-        <div className="detail-section">
-          <h3 className="detail-section-title">{t("dashboard.vpcs")}</h3>
-          {data?.vpcs.length ? (
-            <div className="detail-table-wrap">
-              <table className="dashboard-table">
-                <thead>
-                  <tr>
-                    <th>{t("dashboard.id")}</th>
-                    <th>{t("dashboard.name")}</th>
-                    <th>{t("dashboard.cidr")}</th>
-                    <th>{t("dashboard.state")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.vpcs.map((v) => (
-                    <tr key={v.id}>
-                      <td className="mono">{v.id}</td>
-                      <td>{v.name}</td>
-                      <td className="mono">{v.cidr}</td>
-                      <td><StateBadge state={v.state} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState label={t("dashboard.noData")} />
-          )}
-        </div>
+      {/* Network Metrics Charts */}
+      <NetworkMetrics region={region || data?.region || "us-west-2"} />
 
-        {/* EC2 Instances */}
-        <div className="detail-section">
-          <h3 className="detail-section-title">{t("dashboard.ec2")}</h3>
-          {data?.ec2_instances.length ? (
-            <div className="detail-table-wrap">
-              <table className="dashboard-table">
-                <thead>
-                  <tr>
-                    <th>{t("dashboard.id")}</th>
-                    <th>{t("dashboard.name")}</th>
-                    <th>{t("dashboard.type")}</th>
-                    <th>{t("dashboard.state")}</th>
-                    <th>{t("dashboard.privateIp")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.ec2_instances.map((i) => (
-                    <tr key={i.id}>
-                      <td className="mono">{i.id}</td>
-                      <td>{i.name}</td>
-                      <td className="mono">{i.type}</td>
-                      <td><StateBadge state={i.state} /></td>
-                      <td className="mono">{i.private_ip}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <EmptyState label={t("dashboard.noData")} />
-          )}
-        </div>
-
-        {/* Load Balancers & NAT Gateways side by side */}
-        <div className="detail-row">
-          <div className="detail-section">
-            <h3 className="detail-section-title">{t("dashboard.loadBalancers")}</h3>
-            {data?.load_balancers.length ? (
-              <div className="detail-table-wrap">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>{t("dashboard.name")}</th>
-                      <th>{t("dashboard.type")}</th>
-                      <th>{t("dashboard.scheme")}</th>
-                      <th>{t("dashboard.state")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.load_balancers.map((lb) => (
-                      <tr key={lb.name}>
-                        <td>{lb.name}</td>
-                        <td className="badge-type">{lb.type}</td>
-                        <td>{lb.scheme}</td>
-                        <td><StateBadge state={lb.state} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <EmptyState label={t("dashboard.noData")} />
-            )}
-          </div>
-
-          <div className="detail-section">
-            <h3 className="detail-section-title">{t("dashboard.natGateways")}</h3>
-            {data?.nat_gateways.length ? (
-              <div className="detail-table-wrap">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>{t("dashboard.id")}</th>
-                      <th>{t("dashboard.state")}</th>
-                      <th>{t("dashboard.subnet")}</th>
-                      <th>{t("dashboard.publicIp")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.nat_gateways.map((ng) => (
-                      <tr key={ng.id}>
-                        <td className="mono">{ng.id}</td>
-                        <td><StateBadge state={ng.state} /></td>
-                        <td className="mono">{ng.subnet}</td>
-                        <td className="mono">{ng.public_ip}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <EmptyState label={t("dashboard.noData")} />
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Anomaly Detection Report */}
+      <AnomalyReport
+        region={region || data?.region || "us-west-2"}
+        modelId={modelId}
+        onNavigateToAgent={onNavigateToAgent}
+      />
     </div>
   );
 }

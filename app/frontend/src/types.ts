@@ -83,3 +83,43 @@ export interface DashboardData {
   regions: string[];
   cached_at: number;
 }
+
+// Dashboard metrics types
+export interface DashboardMetrics {
+  region: string;
+  time_range: { start: string; end: string; period_seconds: number };
+  ec2_traffic: {
+    timestamps: string[];
+    network_in_bytes: number[];
+    network_out_bytes: number[];
+  };
+  alb_performance: {
+    name: string;
+    type: string;
+    arn_suffix?: string;
+    timestamps: string[];
+    request_count: number[];
+    response_time_ms: number[];
+    http_2xx: number[];
+    http_5xx: number[];
+  }[];
+  nat_gateways: {
+    id: string;
+    name: string;
+    timestamps: string[];
+    active_connections: number[];
+    bytes_out: number[];
+  }[];
+  transit_gateway: {
+    tgw_id: string;
+    attachments: {
+      id: string;
+      name: string;
+      timestamps: string[];
+      bytes_in: number[];
+      bytes_out: number[];
+    }[];
+  };
+  flow_log_groups?: string[];
+  cached_at: number;
+}

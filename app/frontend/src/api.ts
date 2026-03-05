@@ -1,4 +1,4 @@
-import type { AppConfig, MessageMetrics, DashboardData } from "./types";
+import type { AppConfig, MessageMetrics, DashboardData, DashboardMetrics } from "./types";
 
 export async function fetchConfig(): Promise<AppConfig> {
   const res = await fetch("./api/config");
@@ -153,5 +153,12 @@ export async function fetchDashboard(region?: string): Promise<DashboardData> {
   const params = region ? `?region=${encodeURIComponent(region)}` : "";
   const res = await fetch(`./api/dashboard${params}`);
   if (!res.ok) throw new Error("Failed to fetch dashboard");
+  return res.json();
+}
+
+export async function fetchDashboardMetrics(region?: string): Promise<DashboardMetrics> {
+  const params = region ? `?region=${encodeURIComponent(region)}` : "";
+  const res = await fetch(`./api/dashboard/metrics${params}`);
+  if (!res.ok) throw new Error("Failed to fetch metrics");
   return res.json();
 }

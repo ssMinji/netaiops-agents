@@ -2,6 +2,12 @@
   "app": {
     "title": "NetAIOps Agent Hub"
   },
+  "login": {
+    "title": "NetAIOps Hubへようこそ",
+    "placeholder": "エイリアスを入力",
+    "submit": "続行",
+    "loggedInAs": "ログイン中"
+  },
   "sidebar": {
     "agents": "エージェント",
     "scenarios": "シナリオ"
@@ -55,7 +61,21 @@
     "noData": "リソースが見つかりません",
     "loading": "読み込み中...",
     "error": "ダッシュボードデータの読み込みに失敗しました",
-    "region": "リージョン"
+    "region": "リージョン",
+    "networkHealth": "ネットワーク状態",
+    "autoRefresh": "自動更新",
+    "ec2Traffic": "EC2 ネットワーク",
+    "albPerformance": "ALB パフォーマンス",
+    "natGateway": "NAT ゲートウェイ",
+    "transitGateway": "Transit Gateway",
+    "metricsLoading": "メトリクスを読み込み中...",
+    "metricsError": "メトリクスの読み込みに失敗しました",
+    "anomalyReport": "異常検出レポート",
+    "anomalyScanning": "スキャン中...",
+    "anomalyRescan": "再スキャン",
+    "anomalyDiscuss": "チャットで議論",
+    "anomalyNotDeployed": "異常検出エージェント未配備",
+    "anomalyCached": "キャッシュ"
   },
   "agents": {
     "network": {
@@ -226,6 +246,49 @@
             "利用不可能なレプリカがあるデプロイメントはどれですか？",
             "進行中のロールアウトはありますか？",
             "スケーリングされたワークロードのHPA設定を表示してください"
+          ]
+        }
+      }
+    },
+    "anomaly": {
+      "name": "異常検出エージェント",
+      "description": "ネットワーク異常検出 — CloudWatch ML異常検出、VPC Flow Logs、Inter-AZトラフィック、ELBシフト分析。",
+      "placeholder": "異常検出リクエストを入力... (例: VPC Flow Logsで異常トラフィックパターンを分析)",
+      "scenarios": {
+        "metric-anomaly": {
+          "name": "メトリクス異常検出",
+          "prompt": "CloudWatch異常検出アラームの状態を確認し、主要なEC2/ELBメトリクスが異常検出バンドを逸脱しているか分析してください。",
+          "followUps": [
+            "現在異常バンドを逸脱しているメトリクスはどれですか？",
+            "過去24時間のアラーム履歴を表示してください",
+            "相関関係のあるメトリクス異常はありますか？"
+          ]
+        },
+        "flowlog": {
+          "name": "Flow Log分析",
+          "prompt": "VPC Flow Logsで拒否トラフィックの急増、ポートスキャンパターン、トラフィックボリュームの異常を分析してください。トップトーカーも特定してください。Flow Logsロググループは/vpc/netaiops-prod-flow-logs (Production VPC 10.1.0.0/16)、/vpc/netaiops-staging-flow-logs (Staging VPC 10.2.0.0/16)、/vpc/netaiops-shared-flow-logs (Shared Services VPC 10.0.0.0/16)です。リージョンはus-west-2です。",
+          "followUps": [
+            "拒否された接続が最も多いソースIPはどれですか？",
+            "ポートスキャンパターンは検出されましたか？",
+            "トップトーカーのトラフィックボリューム推移を表示してください"
+          ]
+        },
+        "interaz": {
+          "name": "Inter-AZトラフィック",
+          "prompt": "VPC Flow Logsを分析してCross-AZ vs Intra-AZトラフィック比率を確認してください。上位のCross-AZ通信ペアと推定データ転送コストを教えてください。Flow Logsロググループは/vpc/netaiops-prod-flow-logs (Production VPC, us-west-2)です。",
+          "followUps": [
+            "Cross-AZトラフィックを最も多く発生させるサービスペアはどれですか？",
+            "月間推定Cross-AZデータ転送コストはいくらですか？",
+            "Cross-AZトラフィックを削減するために同一AZに配置できるワークロードはありますか？"
+          ]
+        },
+        "elb-shift": {
+          "name": "ELB変化検出",
+          "prompt": "現在のリージョンのALB/NLBメトリクスをベースライン期間と比較分析し、急激な変化が検出された項目を特定してください。ターゲットヘルス状態も確認してください。",
+          "followUps": [
+            "メトリクスの変化が最も大きいロードバランサーはどれですか？",
+            "異常なターゲットはありますか？",
+            "ベースライン期間と現在期間のエラー率比較を表示してください"
           ]
         }
       }

@@ -7,6 +7,7 @@ import Dashboard from "./components/Dashboard";
 import AgentIcon from "./components/AgentIcon";
 import { DashboardIcon } from "./components/AgentIcon";
 import WelcomeLogo from "./components/WelcomeLogo";
+import LoginPage from "./components/LoginPage";
 
 interface Session {
   id: string;
@@ -25,10 +26,11 @@ const LANGUAGES = [
 
 export default function App() {
   const { t, i18n } = useTranslation();
+  const [userAlias, setUserAlias] = useState<string | null>(() => localStorage.getItem("userAlias"));
   const [agents, setAgents] = useState<Agent[]>([]);
   const [models, setModels] = useState<Model[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const [activeView, setActiveView] = useState<"welcome" | "dashboard" | "chat">("welcome");
+  const [activeView, setActiveView] = useState<"welcome" | "dashboard" | "chat">("dashboard");
   const [selectedModel, setSelectedModel] = useState("");
   const [sessions, setSessions] = useState<Record<string, Session>>({});
   const [isStreaming, setIsStreaming] = useState(false);
@@ -38,6 +40,16 @@ export default function App() {
   const controllerRef = useRef<AbortController | null>(null);
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
+
+  const handleLogin = useCallback((alias: string) => {
+    localStorage.setItem("userAlias", alias);
+    setUserAlias(alias);
+    fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ alias }),
+    }).catch(() => {});
+  }, []);
 
   // Load config on mount
   useEffect(() => {
@@ -227,6 +239,10 @@ export default function App() {
     }
   }
 
+  if (!userAlias) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <div className="app-layout">
       {/* Sidebar */}
@@ -328,6 +344,9 @@ export default function App() {
 
       {/* Main Area */}
       <main className="main-area">
+        <div className="topbar">
+          <span className="topbar-welcome">Welcome, <strong>{userAlias}</strong></span>
+        </div>
         {activeView === "chat" && selectedAgent ? (
           <ChatPage
             agent={selectedAgent}
@@ -346,7 +365,13 @@ export default function App() {
             onSuggestionClick={handleSuggestionClick}
           />
         ) : activeView === "dashboard" ? (
-          <Dashboard />
+          <Dashboard
+            onNavigateToAgent={(agentId) => {
+              const agent = agents.find(a => a.id === agentId);
+              if (agent) handleSelectAgent(agent);
+            }}
+            modelId={selectedModel}
+          />
         ) : (
           <div className="welcome-screen">
             <WelcomeLogo />

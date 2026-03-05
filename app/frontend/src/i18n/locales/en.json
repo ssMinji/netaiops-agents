@@ -2,6 +2,12 @@
   "app": {
     "title": "NetAIOps Agent Hub"
   },
+  "login": {
+    "title": "Welcome to NetAIOps Hub",
+    "placeholder": "Enter your alias",
+    "submit": "Continue",
+    "loggedInAs": "Logged in as"
+  },
   "sidebar": {
     "agents": "Agents",
     "scenarios": "Scenarios"
@@ -55,7 +61,21 @@
     "noData": "No resources found",
     "loading": "Loading...",
     "error": "Failed to load dashboard data",
-    "region": "Region"
+    "region": "Region",
+    "networkHealth": "Network Health",
+    "autoRefresh": "Auto-refresh",
+    "ec2Traffic": "EC2 Network Traffic",
+    "albPerformance": "ALB Performance",
+    "natGateway": "NAT Gateway",
+    "transitGateway": "Transit Gateway",
+    "metricsLoading": "Loading metrics...",
+    "metricsError": "Failed to load metrics",
+    "anomalyReport": "Anomaly Detection Report",
+    "anomalyScanning": "Scanning...",
+    "anomalyRescan": "Re-scan",
+    "anomalyDiscuss": "Discuss in Chat",
+    "anomalyNotDeployed": "Anomaly agent is not deployed",
+    "anomalyCached": "Cached"
   },
   "agents": {
     "network": {
@@ -226,6 +246,49 @@
             "Which deployments have unavailable replicas?",
             "Are there any pending rollouts?",
             "Show me the HPA configuration for scaled workloads"
+          ]
+        }
+      }
+    },
+    "anomaly": {
+      "name": "Anomaly Detection Agent",
+      "description": "Network anomaly detection — CloudWatch ML anomaly detection, VPC Flow Logs, Inter-AZ traffic, ELB shift analysis.",
+      "placeholder": "Enter an anomaly detection request... (e.g., Analyze abnormal traffic patterns in VPC Flow Logs)",
+      "scenarios": {
+        "metric-anomaly": {
+          "name": "Metric Anomaly Detection",
+          "prompt": "Check CloudWatch anomaly detection alarm status and analyze whether key EC2/ELB metrics deviate from anomaly detection bands.",
+          "followUps": [
+            "Which metrics are currently outside their anomaly bands?",
+            "Show me the alarm history for the past 24 hours",
+            "Are there any correlated metric anomalies?"
+          ]
+        },
+        "flowlog": {
+          "name": "Flow Log Analysis",
+          "prompt": "Analyze VPC Flow Logs for rejected traffic surges, port scan patterns, and traffic volume anomalies. Also identify top talkers. Flow Logs log groups are /vpc/netaiops-prod-flow-logs (Production VPC 10.1.0.0/16), /vpc/netaiops-staging-flow-logs (Staging VPC 10.2.0.0/16), /vpc/netaiops-shared-flow-logs (Shared Services VPC 10.0.0.0/16). Region is us-west-2.",
+          "followUps": [
+            "Which source IPs have the most rejected connections?",
+            "Are there any port scanning patterns detected?",
+            "Show me the traffic volume trend for the top talkers"
+          ]
+        },
+        "interaz": {
+          "name": "Inter-AZ Traffic",
+          "prompt": "Analyze VPC Flow Logs to check Cross-AZ vs Intra-AZ traffic ratios. Show top Cross-AZ communication pairs and estimated data transfer costs. Flow Logs log group is /vpc/netaiops-prod-flow-logs (Production VPC, us-west-2).",
+          "followUps": [
+            "Which service pairs generate the most cross-AZ traffic?",
+            "What is the estimated monthly cross-AZ data transfer cost?",
+            "Can any workloads be co-located to reduce cross-AZ traffic?"
+          ]
+        },
+        "elb-shift": {
+          "name": "ELB Change Detection",
+          "prompt": "Analyze ALB/NLB metrics in the current region compared to baseline period and identify items with sudden changes. Also check target health status.",
+          "followUps": [
+            "Which load balancers show the biggest metric shifts?",
+            "Are there any unhealthy targets?",
+            "Show me the error rate comparison between baseline and current period"
           ]
         }
       }

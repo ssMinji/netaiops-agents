@@ -46,6 +46,112 @@ body {
 }
 
 /* =========================================================================
+   LOGIN SCREEN
+   ========================================================================= */
+
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: var(--bg-secondary);
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 3rem 2.5rem 2.5rem;
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-card .welcome-logo {
+  width: 80px;
+  height: 80px;
+  margin-bottom: 1.5rem;
+}
+
+.login-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.login-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-family: var(--font);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  margin-bottom: 1rem;
+}
+
+.login-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.login-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.login-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.5rem 1.25rem;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.topbar-welcome {
+  font-size: 0.825rem;
+  color: var(--text-secondary);
+}
+
+.topbar-welcome strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* =========================================================================
    APP LAYOUT – Sidebar + Main
    ========================================================================= */
 
@@ -514,6 +620,275 @@ body {
   gap: 1rem;
   font-size: 0.75rem;
   opacity: 0.9;
+}
+
+/* ---- Network Metrics Section ---- */
+.metrics-section {
+  margin-bottom: 2rem;
+}
+
+.metrics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.metrics-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.metrics-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.metrics-auto-refresh {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.metrics-auto-refresh input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.metrics-timestamp {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.metrics-chart-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.metrics-chart-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.75rem;
+}
+
+.metrics-chart-subtitle {
+  font-weight: 400;
+  color: var(--text-tertiary);
+  font-size: 0.8rem;
+}
+
+.metrics-no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+}
+
+.metrics-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1rem;
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+}
+
+/* ---- Anomaly Report Section ---- */
+.anomaly-report {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.anomaly-report-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.anomaly-report-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.anomaly-cached-badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.anomaly-scanning-badge {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #2563eb;
+  animation: anomaly-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes anomaly-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.anomaly-report-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.anomaly-btn-chat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: var(--font);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.anomaly-btn-chat:hover {
+  background: var(--accent-hover);
+}
+
+.anomaly-report-content {
+  max-height: 500px;
+  overflow-y: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  color: var(--text-primary);
+}
+
+.anomaly-report-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.anomaly-report-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.anomaly-report-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.anomaly-streaming {
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+}
+
+.anomaly-report-content p {
+  margin-bottom: 0.5rem;
+}
+
+.anomaly-report-content h1,
+.anomaly-report-content h2,
+.anomaly-report-content h3,
+.anomaly-report-content h4 {
+  margin-top: 0.75rem;
+  margin-bottom: 0.375rem;
+}
+
+.anomaly-report-content h1 { font-size: 1.15rem; }
+.anomaly-report-content h2 { font-size: 1.05rem; }
+.anomaly-report-content h3 { font-size: 0.95rem; }
+
+.anomaly-report-content pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  font-size: 0.8rem;
+}
+
+.anomaly-report-content code {
+  background: var(--bg-tertiary);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.anomaly-report-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.anomaly-report-content ul,
+.anomaly-report-content ol {
+  padding-left: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.anomaly-report-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5rem 0;
+  font-size: 0.8rem;
+}
+
+.anomaly-report-content th,
+.anomaly-report-content td {
+  border: 1px solid var(--border);
+  padding: 0.375rem 0.625rem;
+  text-align: left;
+}
+
+.anomaly-report-content th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+}
+
+.anomaly-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+@media (max-width: 1200px) {
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---- Detail Tables ---- */
