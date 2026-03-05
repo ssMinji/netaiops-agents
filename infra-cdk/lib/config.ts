@@ -129,6 +129,30 @@ export const CONFIG = {
     },
   },
 
+  anomalyAgent: {
+    ssmPrefix: '/app/anomaly/agentcore',
+    cognitoPool: {
+      name: 'AnomalyDetectionPool',
+      domainPrefix: 'anomaly-detection',
+      resourceServerIdentifier: 'anomaly-resource-server',
+      machineClientName: 'AnomalyDetectionMachineClient',
+      webClientName: 'AnomalyDetectionWebClient',
+      webCallbackUrl: 'http://localhost:8501/',
+    },
+    lambdas: {
+      cloudwatchAnomaly: { name: 'anomaly-cloudwatch-tools', dir: 'cloudwatch-anomaly' },
+      networkAnomaly: { name: 'anomaly-network-tools', dir: 'network-anomaly' },
+    },
+    gateway: {
+      name: 'anomaly-detection-gateway',
+      description: 'AgentCore Anomaly Detection Gateway',
+    },
+    runtime: {
+      name: 'anomaly_detection_agent_runtime',
+      memoryStrategy: 'NO_MEMORY',
+    },
+  },
+
   networkAgent: {
     ssmPrefix: '/app/network/agentcore',
     agentPool: {
@@ -445,6 +469,89 @@ export const CONFIG = {
             limit: { type: 'integer', description: 'Maximum number of results. Default: 50' },
           },
           required: ['_tool', 'log_group_name'],
+        },
+      },
+    ],
+    cloudwatchAnomaly: [
+      {
+        name: 'anomaly-detect-metrics',
+        description: 'Detect metric anomalies using CloudWatch ANOMALY_DETECTION_BAND. Returns time windows where metric values breach the expected band. Falls back to statistical analysis if detector is not trained.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "anomaly-detect-metrics".' },
+            namespace: { type: 'string', description: 'CloudWatch namespace. Allowed values: AWS/EC2, AWS/ELB, AWS/ApplicationELB, AWS/NetworkELB, AWS/NATGateway, ContainerInsights, AWS/VPN, AWS/TransitGateway' },
+            metric_name: { type: 'string', description: 'CloudWatch metric name (e.g., CPUUtilization, NetworkIn, ActiveFlowCount)' },
+            dimensions: { type: 'array', items: { type: 'object' }, description: 'CloudWatch dimensions as [{"Name":"key","Value":"val"}]' },
+            stat: { type: 'string', description: 'Statistic. Allowed values: Average, Sum, Maximum, Minimum, SampleCount. Default: Average' },
+            band_width: { type: 'number', description: 'Anomaly detection band width (standard deviations). Default: 2' },
+            minutes: { type: 'integer', description: 'How many minutes back to analyze. Default: 120' },
+            period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
+          },
+          required: ['_tool', 'namespace', 'metric_name'],
+        },
+      },
+      {
+        name: 'anomaly-get-alarms',
+        description: 'Get CloudWatch anomaly detection alarm statuses. Filters alarms that use anomaly detection (ThresholdMetricId present).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "anomaly-get-alarms".' },
+            alarm_name_prefix: { type: 'string', description: 'Filter alarms by name prefix (optional)' },
+            state_value: { type: 'string', description: 'Filter by alarm state. Allowed values: OK, ALARM, INSUFFICIENT_DATA. Default: all states' },
+          },
+          required: ['_tool'],
+        },
+      },
+    ],
+    networkAnomaly: [
+      {
+        name: 'anomaly-flowlog-analysis',
+        description: 'Analyze VPC Flow Logs for anomalies: denied traffic spikes, port scan patterns, volume anomalies, and top talkers.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "anomaly-flowlog-analysis".' },
+            log_group_name: { type: 'string', description: 'CloudWatch Logs group name for VPC Flow Logs' },
+            analysis_type: { type: 'string', description: 'Analysis type. Allowed values: denied_spike, port_scan, volume_anomaly, top_talkers, all. Default: all' },
+            minutes: { type: 'integer', description: 'How many minutes back to analyze. Default: 60' },
+            bucket_minutes: { type: 'integer', description: 'Time bucket size in minutes for trend analysis. Default: 5' },
+          },
+          required: ['_tool', 'log_group_name'],
+        },
+      },
+      {
+        name: 'anomaly-interaz-traffic',
+        description: 'Analyze Inter-AZ vs Intra-AZ traffic ratio from VPC Flow Logs. Calculates cross-AZ percentage and estimates data transfer cost ($0.01/GB).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "anomaly-interaz-traffic".' },
+            log_group_name: { type: 'string', description: 'CloudWatch Logs group name for VPC Flow Logs' },
+            vpc_id: { type: 'string', description: 'VPC ID to analyze (optional, auto-detected from flow logs if not specified)' },
+            minutes: { type: 'integer', description: 'How many minutes back to analyze. Default: 60' },
+            top_n: { type: 'integer', description: 'Number of top cross-AZ pairs to return. Default: 10' },
+          },
+          required: ['_tool', 'log_group_name'],
+        },
+      },
+      {
+        name: 'anomaly-elb-shift',
+        description: 'Detect ALB/NLB metric shifts by comparing current period against baseline. Calculates percentage change and flags metrics exceeding threshold.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            _tool: { type: 'string', description: 'Tool identifier. Must be "anomaly-elb-shift".' },
+            load_balancer_arn: { type: 'string', description: 'Full ARN or the app/xxx/yyy or net/xxx/yyy portion of the load balancer' },
+            lb_type: { type: 'string', description: 'Load balancer type. Allowed values: alb, nlb. Default: alb' },
+            baseline_start_minutes_ago: { type: 'integer', description: 'Baseline period start (minutes ago). Default: 120' },
+            baseline_end_minutes_ago: { type: 'integer', description: 'Baseline period end (minutes ago). Default: 60' },
+            current_minutes: { type: 'integer', description: 'Current period length in minutes. Default: 60' },
+            shift_threshold_pct: { type: 'number', description: 'Percentage change threshold to flag as shift. Default: 50' },
+            period: { type: 'integer', description: 'Metric period in seconds. Default: 300' },
+          },
+          required: ['_tool', 'load_balancer_arn'],
         },
       },
     ],

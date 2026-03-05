@@ -73,7 +73,7 @@ export class McpGateway extends Construct {
       },
     });
 
-    this.gatewayId = gateway.getAtt('GatewayId').toString();
+    this.gatewayId = gateway.getAtt('GatewayIdentifier').toString();
     this.gatewayArn = gateway.getAtt('GatewayArn').toString();
     this.gatewayUrl = gateway.getAtt('GatewayUrl').toString();
 
