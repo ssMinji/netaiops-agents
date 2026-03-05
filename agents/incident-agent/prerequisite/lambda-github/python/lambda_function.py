@@ -133,11 +133,11 @@ def _load_github_config():
             Name=GITHUB_PAT_SSM_PARAM,
             WithDecryption=True
         )
-        _github_pat = pat_response["Parameter"]["Value"]
+        _github_pat = pat_response["Parameter"]["Value"].strip()
 
         # Get GitHub repo (GitHub repo 가져오기)
         repo_response = ssm_client.get_parameter(Name=GITHUB_REPO_SSM_PARAM)
-        _github_repo = repo_response["Parameter"]["Value"]
+        _github_repo = repo_response["Parameter"]["Value"].strip()
 
         print(f"Loaded GitHub config: repo={_github_repo}, pat_length={len(_github_pat)}")
     except Exception as e:
@@ -300,6 +300,7 @@ def lambda_handler(event, context):
 def handle_create_issue(params):
     """Create a new GitHub issue for an incident.
     인시던트를 위한 새 GitHub 이슈를 생성합니다."""
+    _load_github_config()
     title = params["title"]
     body = params["body"]
     labels = params.get("labels", ["incident", "auto-analysis"])
@@ -327,6 +328,7 @@ def handle_create_issue(params):
 def handle_add_comment(params):
     """Add a comment to an existing GitHub issue.
     기존 GitHub 이슈에 코멘트를 추가합니다."""
+    _load_github_config()
     issue_number = params["issue_number"]
     body = params["body"]
 
@@ -347,6 +349,7 @@ def handle_add_comment(params):
 def handle_list_issues(params):
     """List recent incident issues.
     최근 인시던트 이슈 목록을 조회합니다."""
+    _load_github_config()
     state = params.get("state", "open")
     labels = params.get("labels", "incident")
     limit = params.get("limit", 10)

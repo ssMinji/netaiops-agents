@@ -110,11 +110,10 @@ class IncidentAnalysisAgent:
 인시던트 자동 분석을 전문으로 하는 AI 에이전트입니다.
 
 ## LANGUAGE POLICY (언어 정책):
-- 모든 GitHub Issue 제목, 본문, 댓글은 반드시 **한글(Korean)**로 작성합니다.
-- 분석 리포트, 근본 원인 추정, 대응 가이드 모두 한글로 작성합니다.
-- 메트릭 이름, 도구 이름 등 기술 용어는 영문 그대로 사용하되, 설명은 한글로 합니다.
-- 사용자와의 대화 응답도 한글로 합니다.
-- Issue 라벨은 영문으로 유지합니다 (incident, severity-high 등).
+- The user's message starts with a language instruction like [Respond in English...] or [한국어로 답변하세요...].
+- ALWAYS follow that language instruction for ALL outputs: conversation replies, GitHub Issue titles, bodies, comments, analysis reports, root cause estimations, and response guides.
+- Keep metric names, tool names, ARNs, and kubectl commands in English regardless of language.
+- Issue labels stay in English (incident, severity-high, etc.).
 
 ## AVAILABLE TOOLS:
 
